@@ -31,6 +31,9 @@ export function handleChangesLeft(profile: Pick<Profile, "handleChanges">): numb
  * Both fields default to true, so an account created before these existed is
  * public and listed, which is what it already was.
  */
+/** Same reasoning as READ_PAGE in usage.ts: fewer round trips. */
+const PROFILE_PAGE = 1000;
+
 export function listedFor(
   profile: Pick<Profile, "isPublic" | "listed">,
 ): boolean {
@@ -184,14 +187,14 @@ export async function listAllProfiles(): Promise<Profile[]> {
   let cursor: string | undefined;
 
   for (;;) {
-    const queries = [Query.limit(100), Query.orderAsc("$id")];
+    const queries = [Query.limit(PROFILE_PAGE), Query.orderAsc("$id")];
     if (cursor) queries.push(Query.cursorAfter(cursor));
 
     const page = await db().listDocuments(DB_ID, "profiles", queries);
     const docs = page.documents as unknown as Profile[];
     out.push(...docs);
 
-    if (docs.length < 100) break;
+    if (docs.length < PROFILE_PAGE) break;
     cursor = docs[docs.length - 1]?.$id;
     if (!cursor) break;
   }
@@ -218,7 +221,7 @@ export async function deleteAccount(userId: string): Promise<{ removed: Record<s
     for (;;) {
       const page = await db().listDocuments(DB_ID, collection, [
         Query.equal("userId", userId),
-        Query.limit(100),
+        Query.limit(PROFILE_PAGE),
       ]);
       if (page.documents.length === 0) break;
 
@@ -226,7 +229,7 @@ export async function deleteAccount(userId: string): Promise<{ removed: Record<s
         await db().deleteDocument(DB_ID, collection, doc.$id).catch(() => {});
         count++;
       }
-      if (page.documents.length < 100) break;
+      if (page.documents.length < PROFILE_PAGE) break;
     }
     removed[collection] = count;
   };

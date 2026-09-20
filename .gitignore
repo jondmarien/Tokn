@@ -29,3 +29,5 @@ brand/
 CLAUDE.md
 .vscode/
 .idea/
+.vercel
+.env*

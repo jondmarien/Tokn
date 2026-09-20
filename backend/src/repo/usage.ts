@@ -37,6 +37,21 @@ const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
 const BATCH = 100;
 
 /**
+ * How many rows to pull per read.
+ *
+ * Reads and writes have completely different ceilings, and using the write
+ * batch for both was costing whole seconds on every page view: 2,120 rows at
+ * 100 a page is 22 *sequential* round trips, ~4.5s, because each one has to
+ * finish before the cursor for the next is known. The same rows come back in
+ * ~0.4s when asked for in one go.
+ *
+ * Measured against this database: limit 100 → 212ms/page, 1000 → 291ms,
+ * 5000 → 414ms for everything. A thousand keeps the per-request payload
+ * sensible while cutting the round trips by an order of magnitude.
+ */
+const READ_PAGE = 1000;
+
+/**
  * Coerce one uploaded row, dropping anything malformed rather than failing the
  * whole sync — one odd line in a session log should not cost someone their
  * entire scan.
@@ -140,7 +155,7 @@ export async function listUsage(
   let cursor: string | undefined;
 
   for (;;) {
-    const queries = [Query.equal("userId", userId), Query.limit(BATCH), Query.orderAsc("$id")];
+    const queries = [Query.equal("userId", userId), Query.limit(READ_PAGE), Query.orderAsc("$id")];
     if (options.since) queries.push(Query.greaterThanEqual("day", options.since));
     if (cursor) queries.push(Query.cursorAfter(cursor));
 
@@ -148,7 +163,7 @@ export async function listUsage(
     const docs = page.documents as unknown as UsageDoc[];
     out.push(...docs);
 
-    if (docs.length < BATCH) break;
+    if (docs.length < READ_PAGE) break;
     cursor = docs[docs.length - 1]?.$id;
     if (!cursor) break;
   }
@@ -171,7 +186,7 @@ export async function listAllUsage(options: { since?: string; until?: string } =
   let cursor: string | undefined;
 
   for (;;) {
-    const queries = [Query.limit(BATCH), Query.orderAsc("$id")];
+    const queries = [Query.limit(READ_PAGE), Query.orderAsc("$id")];
     if (options.since) queries.push(Query.greaterThanEqual("day", options.since));
     if (options.until) queries.push(Query.lessThanEqual("day", options.until));
     if (cursor) queries.push(Query.cursorAfter(cursor));
@@ -180,7 +195,7 @@ export async function listAllUsage(options: { since?: string; until?: string } =
     const docs = page.documents as unknown as UsageDoc[];
     out.push(...docs);
 
-    if (docs.length < BATCH) break;
+    if (docs.length < READ_PAGE) break;
     cursor = docs[docs.length - 1]?.$id;
     if (!cursor) break;
   }
