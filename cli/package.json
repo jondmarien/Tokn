@@ -1,0 +1,50 @@
+{
+  "name": "tokn",
+  "version": "0.1.0",
+  "description": "Track your AI coding usage across every CLI you use, and publish it to the leaderboard.",
+  "type": "module",
+  "bin": {
+    "tokn": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "scripts/postinstall.mjs",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18.17"
+  },
+  "scripts": {
+    "build": "node scripts/check-escapes.mjs && tsc && chmod +x dist/index.js",
+    "dev": "tsc --watch",
+    "postinstall": "node scripts/postinstall.mjs || true",
+    "prepublishOnly": "npm run build",
+    "pricing": "node scripts/gen-pricing.mjs src/core/pricing-data.ts",
+    "check:escapes": "node scripts/check-escapes.mjs"
+  },
+  "keywords": [
+    "claude",
+    "codex",
+    "copilot",
+    "opencode",
+    "cursor",
+    "ai",
+    "usage",
+    "tokens",
+    "cost",
+    "leaderboard"
+  ],
+  "license": "GPL-3.0-or-later",
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "typescript": "^5.7.2"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/toknlabs/Tokn.git"
+  },
+  "homepage": "https://toknhq.com",
+  "bugs": {
+    "url": "https://github.com/toknlabs/Tokn/issues"
+  }
+}

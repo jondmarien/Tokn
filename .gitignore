@@ -1,0 +1,29 @@
+# Secrets — never commit. The Appwrite API key grants full project access.
+.env
+.env.*
+!.env.example
+
+node_modules/
+dist/
+.next/
+out/
+
+# Local databases and scratch data
+data/
+*.db
+*.db-wal
+*.db-shm
+
+.DS_Store
+*.log
+
+# Fetched from Google Fonts by brand/make-kit.py, not redistributed here.
+brand/.fonts/
+
+# Editor, agent and tooling state — local to a machine, not part of the project.
+.claude/
+.mcp.json
+.eaonbrain/
+CLAUDE.md
+.vscode/
+.idea/

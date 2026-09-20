@@ -1,0 +1,398 @@
+# tokn — dashboard
+
+The website half of the AI usage tracker: the leaderboard, public profiles, the
+device-link flow, and the four endpoints the CLI talks to.
+
+## Running it
+
+```bash
+npm install
+npm run seed -- --reset   # 22 demo accounts, ~5 months of usage
+npm run dev               # http://localhost:3000
+```
+
+Every seeded account signs in with the password `tokn1234`. The seeder prints
+which handle has the fullest profile when it finishes.
+
+## Layout
+
+```
+src/app/            pages and API routes
+src/components/     nav, charts, heatmap, profile body
+src/lib/db.ts       SQLite schema and connection
+src/lib/auth.ts     accounts, sessions, device tokens, link codes
+src/lib/stats.ts    every query the pages make
+src/lib/pricing.ts  the rate table served to the CLI
+```
+
+Data lands in `data/tokn.db` (gitignored). Point `TOKN_DB` elsewhere to move it.
+
+## The CLI contract
+
+Four endpoints, matching `cli/src/core/api.ts`:
+
+| endpoint | auth | purpose |
+| --- | --- | --- |
+| `POST /api/cli/link` | none | trade an 8-character code for a device token |
+| `GET /api/cli/me` | bearer | who this device belongs to |
+| `POST /api/cli/sync` | bearer | upload a scan |
+| `GET /api/cli/pricing` | none | the rate table |
+
+**Sync is an upsert keyed on `(user, day, model, fast)`.** A full rescan must
+replace a day's figures, never add to them — that is what lets `tokn sync` run
+as often as you like and lets a corrected scan heal a bad one. Rows that fail
+validation are skipped rather than failing the whole upload; the response
+reports both `accepted` and `skipped`.
+
+Run the CLI against a local dashboard with:
+
+```bash
+TOKN_HOST=http://localhost:3000 tokn link
+TOKN_HOST=http://localhost:3000 tokn sync
+```
+
+## Link flow
+
+1. `/link` issues a single-use code, valid ten minutes, and polls
+   `/api/link/status` while it waits.
+2. `tokn link` posts the code to `/api/cli/link` and stores the token it gets
+   back.
+3. The page flips to "linked" on its own; the machine appears under `/account`,
+   where it can be revoked.
+
+Device tokens are stored as SHA-256 hashes, so the database never holds a
+credential that could be replayed. Passwords use scrypt with a per-user salt.
+
+## Design
+
+Minimal on purpose. No cards, no shadows, no gradients, no rules between
+columns, no background texture. Structure comes from alignment and space.
+
+Themes live in `lib/themes.ts` as five hex values each — `bg`, `alt`, `sub`,
+`text`, `main`. `themeStylesheet()` generates the CSS and the layout injects it
+into `<head>`; the swatches in the picker read the same array, so a swatch can
+never disagree with the palette it selects. Adding a theme is one line.
+
+`--on-main`, the avatar tones and `color-scheme` are derived from luminance
+rather than declared.
+
+The boot script sets `data-theme` **and** `data-dark` on `<html>`. Anything
+that only needs to know whether the ground is dark — profile accent variants,
+generated avatars, the error red — keys off `data-dark` rather than
+enumerating theme names.
+
+Generated rules are `html[data-theme="…"]`, which outranks the default palette
+block (`:root`) in this file. Plain `[data-theme="…"]` ties on specificity and
+leaves source order to decide, which is fragile.
+
+The picker is the left footer chip; the right one opens the release notes from
+`lib/releases.ts`. Hovering a theme previews it on the whole page, and only a
+click persists.
+
+### Motion
+
+`--ease: cubic-bezier(0.22, 1, 0.36, 1)`, and three durations: `--t-press`
+120ms, `--t-fast` 160ms, `--t-base` 240ms. Custom easing only, never `ease-in`
+on UI, never `transition: all`, `scale(0.97)` on `:active`, hover behind
+`@media (hover: hover) and (pointer: fine)`, and `prefers-reduced-motion`
+collapsing every duration.
+
+Two things animate: the four headline figures count up once on first paint
+(`Ticker`), and the active filter pill slides between options rather than
+cross-fading two backgrounds.
+
+### The account section
+
+Everything belonging to one person lives under `/account`:
+
+```
+/account            stats and connected machines
+/account/friends
+/account/settings
+```
+
+`app/account/layout.tsx` supplies the header (avatar, name, totals) and
+the tabs. The sign-in check lives there once rather than at the top of every
+page — a layout wraps every route beneath it, so no child can be reached
+without it. `/settings` and `/friends` remain as permanent redirects, since
+those paths shipped in the footer and are in bookmarks.
+
+`ProfileView` takes `identity={false}` inside this section: the layout already
+says who you are, and without it the page carries two headers.
+
+### Navigation
+
+The top bar carries only what everyone sees: the board and the site-wide
+stats. Anything belonging to one person sits behind their own name in the
+account menu, `connect` included — linking a machine is something you do to
+your account, not a place you go.
+
+`about` is in the footer. It is a page you read once.
+
+### Account menu
+
+Hovering your handle opens the menu — user stats, friends, public profile,
+connect a machine, account settings, sign out. The nav is for what everyone
+shares; anything belonging to one person lives behind their own name.
+
+There is no level or XP badge. It was removed deliberately: the site measures
+spend, and a cosmetic rank derived from token count invited people to read it
+as an achievement. It also cost one indexed document read on every page render
+of every route, since the root layout had to fetch totals purely to draw it.
+
+Three details keep the hover honest: the whole wrapper is the hover target
+(not just the trigger), a `::before` bridge covers the gap under it, and a
+220ms close delay forgives the diagonal path toward an item further down.
+Without all three it flickers shut halfway to whatever you were reaching for.
+Touch pointers are ignored so a tap toggles instead.
+
+### Passkeys
+
+WebAuthn via `@simplewebauthn/{server,browser}`. Do not hand-roll the
+verification: it means CBOR parsing, attestation handling and signature
+checking, and a mistake there is a silent authentication bypass rather than a
+visible bug.
+
+Only public keys are stored, so this table leaking does not let anyone sign in.
+Sign-in is usernameless — `allowCredentials: []` with a discoverable credential,
+so nothing is typed and the response never reveals which handles have passkeys.
+Passwords keep working; a passkey is an addition.
+
+The challenge lives in a 5-minute httpOnly cookie between the halves of a
+ceremony, read-and-deleted on verify, so an unauthenticated sign-in needs no
+server state.
+
+**`TOKN_PUBLIC_URL` is the relying party.** Credentials registered under one
+rpID cannot be used under another, so changing it invalidates every existing
+passkey.
+
+To test headlessly, use CDP's virtual authenticator
+(`WebAuthn.addVirtualAuthenticator` with `hasResidentKey` and
+`automaticPresenceSimulation`) — no hardware, no prompts. Delete the test
+credentials afterwards; they outlive the authenticator that made them.
+
+### The board ranks everyone
+
+`leaderboard()` seeds its accumulator from **profiles, not from usage**, so an
+account is ranked from the moment it is created. Signing up is enough; syncing
+is what moves you up. A row with nothing in the window renders its figures as
+dashes and carries `data-quiet`, which dims it without hiding it.
+
+Private accounts and accounts that opted out are still excluded — see below.
+"Everyone" means everyone who has not asked to be left off.
+
+Consequences worth knowing:
+
+- **Ties are broken by join date, not by handle.** Everyone yet to report ties
+  at zero, and ordering that block alphabetically would read as a ranking it
+  is not. Oldest account first is at least a fact about them.
+- **Quiet rows show no movement arrow.** Their rank comes from the tie-break,
+  so comparing it with last week measures who else signed up rather than
+  anything the account did. Without this an untouched account shows `↓23`.
+- **Reconstructing an earlier board excludes accounts that did not exist
+  yet.** `previousRanks` passes `until`, and profiles created after it are not
+  seeded, so someone who joined this week is new rather than motionless.
+- **`rankOf` returns a number for everyone**, so a profile shows its standing
+  before its first sync.
+
+A "top ten this month" is a different question from the board, and padding one
+with dashes says nothing, so `/stats` and `/api/cli/site` pass
+`{ activeOnly: true }`. The board and `/api/cli/board` do not.
+
+### Paging
+
+Fifteen rows a page, with prev/next under the table. `page` lives in the query
+string like `period` and `metric`, so every page is linkable and the back
+button works.
+
+- **Ranks are assigned before the slice**, in `leaderboard()`. Page two starts
+  at 16; it does not restart at 1.
+- **Out-of-range pages clamp** rather than 404. A stale link to page 9 of a
+  board that has since shrunk should land on the last page.
+- **The page count comes from `rankedUsers()`, not from the window.** Every
+  account is ranked whether or not it reported, so switching period does not
+  change how many pages there are.
+- **Changing period or metric drops `page`**, which resets to 1. Staying on
+  page 4 while switching metric lands somewhere arbitrary.
+- **Your own row is appended when you are not on the page being viewed**, and
+  carries `data-detached` for a gap above it. Without the gap the rank jumps
+  from 15 to 75 against a 2px row gap and reads as a data error.
+
+The quiet-window note is asked of `globalTotals`, not of the rows on screen:
+page three being all dashes is ordinary, and the note is about nobody having
+reported at all.
+
+`/api/cli/board` still fetches 100 rows in one go. Paging a terminal table is
+the CLI's own question.
+
+### Handles and visibility
+
+A handle can be changed **twice**, ever. The counter is `profiles.handleChanges`
+and `HANDLE_CHANGE_LIMIT` lives in `backend/src/repo/profiles.ts`; past the cap
+the settings page points at support. Case-only edits (`ada` to `Ada`) are free,
+because they do not move the URL.
+
+A rename touches two rows — the handle is denormalised onto `user_totals` so
+the leaderboard reads without a join. The profile is written first, so a failed
+totals update leaves a stale name on the board rather than two rows disagreeing
+about who owns the handle.
+
+Two independent switches govern visibility:
+
+| | |
+| --- | --- |
+| `isPublic` | can anyone open the profile page |
+| `listed` | does the account appear on the leaderboard |
+
+Private implies unlisted, enforced on write by `listedFor()` rather than by
+remembering a clause at every read. A public profile may still opt out of being
+ranked; its usage keeps counting toward the anonymous site-wide totals, and the
+settings copy says so.
+
+A private profile is a 404 to everyone but its owner — not a "this is private"
+page, which would confirm the handle exists.
+
+### Profile customisation
+
+`/account/settings` is grouped under headings: profile, appearance, stats,
+privacy, security, billing, danger. Grouping is the only structure the page
+has — no cards, no borders — so each heading has to say which part of the
+account its rows belong to.
+
+`appearance` is how the profile looks (accent, avatar). `stats` is which
+numbers it reports (headline figures, sections). Those are different questions
+and were confusing while they sat together.
+
+`Appearance.tsx` renders two of those groups itself, which is why it reaches
+for `SettingsGroup` rather than the page doing the wrapping.
+
+Owners can change how their page looks, in `/settings`. All of it is
+presentation — nothing here changes what is measured or how anyone ranks.
+
+- **Accent** — one of eleven named colours, recolouring the whole profile for
+  every visitor (`mono` included, for a profile that wants to be pure type).
+- **Avatar** — generated from the handle, first initial on an accent block, or
+  the linked GitHub picture.
+- **Headline figures** — which four of eleven stats lead the page.
+- **Sections** — which of six blocks appear and in what order.
+
+Stored as a JSON blob in `profiles.prefs`; the vocabulary, defaults and parser
+live in `lib/prefs.ts`.
+
+Two rules to keep:
+
+- **Named accents, never a colour picker.** A raw hex cannot satisfy both
+  themes — what reads on near-black is invisible on white. Each name carries a
+  pair and CSS picks between them.
+- **Parsing is total.** A malformed blob, an unknown key or an empty list all
+  degrade to something renderable. A profile must never fail to render because
+  of a preferences string.
+
+The accent is scoped with `data-accent` on a `display: contents` wrapper.
+Everything already reads `var(--main)`, so one attribute recolours the profile
+while the site chrome stays put.
+
+**Adding a field means provisioning it.** Putting an attribute in
+`backend/src/schema.ts` does not create it; run `cd backend && npm run
+provision`. Until you do, saves fail with `Unknown attribute` in the server log
+and the form silently does nothing.
+
+### Plans
+
+Under `billing`, people can list what they actually pay for: up to eight rows
+of provider, plan name, subscription or API, and an optional monthly price.
+The list renders on the profile as the `what you pay for` block.
+
+This is the only part of a profile that is **stated rather than measured**.
+Everything else comes from session logs; a plan is something only its owner
+knows. So the block says so in as many words, and the settings row repeats it:
+*nothing here is verified*. Do not add a checkmark, a "verified" badge, or any
+treatment that would lend it the confidence the measured figures have.
+
+The price is optional, on purpose. It is what makes the section interesting —
+a flat fee next to the API-rate value of the work it carried — and also the
+most personal thing on the page, so nobody has to publish it to name a
+provider.
+
+Three rules worth keeping:
+
+- **Only subscriptions get compared.** `subscriptionMonthly()` sums the flat
+  fees alone. An API plan's monthly figure *is* usage, billed at the very rates
+  the site prices everything at, so telling someone their pay-as-you-go account
+  "returned 9x" is nonsense. The headline total still includes API plans —
+  that is what they pay — and the sentence says "in subscriptions" so the two
+  figures reading differently is explained rather than confusing.
+- **The comparison window is cut by date, not by row.** `stats.byDay` holds
+  only days that had usage, so `slice(-30)` on a twice-a-week account reaches
+  back four months while the sentence claims thirty days. `spendSince()` takes
+  a real cutoff.
+- **The block renders without usage.** It is the one section that needs no
+  data, and a new account that has listed its stack but not yet synced still
+  has something to show.
+
+`lib/plans.ts` holds the provider catalogue, parsing and the totals;
+`components/PlanFields.tsx` is the editor. Its rows are plain inputs named
+`plan.*` that the server action reads as parallel arrays, so **every field has
+to be submitted on every row or the indexes slip** — that is why the custom
+provider name is still rendered, as `type="hidden"`, when the provider is not
+`other`. Saving also rewrites `profiles.billing` from the list
+(`billingFromPlans`), because a `plan` tag on the leaderboard that contradicts
+the plans on the profile is worse than either alone.
+
+### The about page
+
+One column, read top to bottom, in sections, at the same 42rem measure the
+legal pages use. `.prose-page` is a three-column grid — gutter, measure,
+gutter — so a section marked `bleed` can break out to full width. Only the
+figures band does; it reads as a band at full width and as a list inside the
+measure.
+
+There is no rate card here. `lib/pricing.ts` is still the source of truth for
+what anything costs, and the cache multipliers are stated in prose in step two
+of "how it works", but the page is a read rather than a reference table.
+
+**Every number on it is read live.** A page whose whole claim is that the
+project measures things rather than guessing should not carry a figure someone
+typed in by hand.
+
+The figures are all-time, and that took a fix: `siteStats` computes `byDay`,
+`byModel` and `byTool` *inside* the rolling window, so "tools seen" and "days
+recorded" taken from those were 30-day numbers under an all-time caption.
+`allTime.models` and `allTime.days` count distinct models and days over the
+whole history, in the same single pass.
+
+### Profiles
+
+`/profile/<handle>` is a stack of blocks with nothing drawn around them: a
+label, the figure, and the shape of it. Avatars are generated from the handle
+(`components/Avatar.tsx`) and take their lightness from `--av-base` /
+`--av-tint` so the same mark works on both themes — there is nothing to upload
+and no broken image state.
+
+Profile links live in a JSON array on the user row. `lib/links.ts` derives the
+provider from the host, so a user pastes a link and the right icon and label
+appear; anything unrecognised gets a globe and its hostname, which keeps
+personal sites first-class. `normalizeLink` accepts bare hosts and rejects
+anything that is not http(s), so `javascript:` can never reach an href.
+
+## Notes
+
+- `tokn unlink` only clears local config; it does not revoke the token
+  server-side. Use the revoke button on `/account` for that.
+- SQLite is a deliberate local-first choice. Everything touching it is behind
+  `src/lib/db.ts`, so swapping in Postgres for deployment is one file plus the
+  query helpers in `stats.ts`.
+- Do not run `npm run build` while `next dev` is running. It overwrites `.next`
+  and every page starts 500ing with a React Client Manifest error. Kill dev,
+  `rm -rf .next`, restart.
+- Never put `position: sticky` on a `<thead>` inside `.table-wrap`. That
+  wrapper has `overflow-x`, which makes it the sticky containing block in
+  *both* axes, so a `top` offset parks the header partway down the table and
+  hides the first row. This bit twice before the tables went flat.
+- Nothing time-dependent may be computed during render in a client component.
+  `LinkPanel` seeded its countdown from `Date.now()` and hydrated with a
+  mismatch on every load; it now starts at the constant TTL and corrects in an
+  effect.
+- The leaderboard page runs several full-table scans per request
+  (`previousRanks`, `modelMix`, `rankOf`). Fine at this size; the first thing
+  to optimise when the board grows past a few thousand rows.

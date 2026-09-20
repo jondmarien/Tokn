@@ -1,0 +1,2054 @@
+/*
+ * tokn
+ *
+ * Minimal on purpose. No cards, no shadows, no gradients, no rules between
+ * columns, no background texture. Structure comes from alignment and space.
+ *
+ * Five colours per theme — bg, sub-alt, sub, text, main — and `main` only ever
+ * marks the thing you are currently looking at. Everything is monospace, which
+ * is what lets a table of numbers hold its shape with nothing drawn around it.
+ */
+
+:root {
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --t-press: 120ms;
+  --t-fast: 160ms;
+  --t-base: 240ms;
+
+  --radius: 6px;
+  --page: 1000px;
+}
+
+/* ---------------------------------------------------------------- themes */
+
+/*
+ * Every theme's palette is generated from `lib/themes.ts` into a <style> in the
+ * document head, with `html[data-theme="…"]` selectors that outrank this block.
+ * What follows is the default, used for the instant before the boot script runs
+ * and as the floor if a stored theme no longer exists.
+ */
+:root {
+  color-scheme: dark;
+
+  --bg: #121214;
+  --sub-alt: #1b1b1e;
+  --sub: #73737b;
+  --text: #d9d9d6;
+  --main: #ccff33;
+  --on-main: #12140a;
+  --error: #f2708a;
+
+  --av-base: 20%;
+  --av-tint: 36%;
+}
+
+/* `--error` is not part of a theme: a destructive action reads as destructive
+   whatever palette is on. Light themes need a darker red to stay legible. */
+[data-dark="false"] {
+  --error: #c0392b;
+}
+
+/* ---------------------------------------------------------------- accents */
+
+[data-accent="lime"] {
+  --main: #ccff33;
+  --on-main: #12140a;
+}
+[data-accent="amber"] {
+  --main: #f5c542;
+  --on-main: #171206;
+}
+[data-accent="orange"] {
+  --main: #ff9f45;
+  --on-main: #1a0f05;
+}
+[data-accent="coral"] {
+  --main: #ff8066;
+  --on-main: #1a0a07;
+}
+[data-accent="rose"] {
+  --main: #ff7fa8;
+  --on-main: #1a0810;
+}
+[data-accent="violet"] {
+  --main: #b99bff;
+  --on-main: #120c1f;
+}
+[data-accent="blue"] {
+  --main: #7fb4ff;
+  --on-main: #060f1c;
+}
+[data-accent="cyan"] {
+  --main: #5fd9e8;
+  --on-main: #041518;
+}
+[data-accent="teal"] {
+  --main: #5fd9b0;
+  --on-main: #04150f;
+}
+[data-accent="mint"] {
+  --main: #9df2c0;
+  --on-main: #06160e;
+}
+/* No accent at all, for a profile that wants to be pure type. */
+[data-accent="mono"] {
+  --main: #d9d9d6;
+  --on-main: #121214;
+}
+
+[data-dark="false"] [data-accent="lime"] {
+  --main: #5c8a0a;
+  --on-main: #ffffff;
+}
+[data-dark="false"] [data-accent="amber"] {
+  --main: #a16207;
+  --on-main: #ffffff;
+}
+[data-dark="false"] [data-accent="orange"] {
+  --main: #c2410c;
+  --on-main: #ffffff;
+}
+[data-dark="false"] [data-accent="coral"] {
+  --main: #c0392b;
+  --on-main: #ffffff;
+}
+[data-dark="false"] [data-accent="rose"] {
+  --main: #be185d;
+  --on-main: #ffffff;
+}
+[data-dark="false"] [data-accent="violet"] {
+  --main: #6d28d9;
+  --on-main: #ffffff;
+}
+[data-dark="false"] [data-accent="blue"] {
+  --main: #1d4ed8;
+  --on-main: #ffffff;
+}
+[data-dark="false"] [data-accent="cyan"] {
+  --main: #0e7490;
+  --on-main: #ffffff;
+}
+[data-dark="false"] [data-accent="teal"] {
+  --main: #0f766e;
+  --on-main: #ffffff;
+}
+[data-dark="false"] [data-accent="mint"] {
+  --main: #047857;
+  --on-main: #ffffff;
+}
+[data-dark="false"] [data-accent="mono"] {
+  --main: #26262a;
+  --on-main: #ffffff;
+}
+
+/* ------------------------------------------------------------------ base */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--bg);
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 14px;
+  line-height: 1.6;
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+  transition: color var(--t-fast) var(--ease);
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+  margin: 0;
+}
+
+h1,
+h2,
+h3,
+p,
+ol,
+ul,
+dl,
+figure {
+  margin: 0;
+}
+
+::selection {
+  background: var(--main);
+  color: var(--on-main);
+}
+
+:focus-visible {
+  outline: 2px solid var(--main);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  a.link:hover {
+    color: var(--main);
+  }
+}
+
+/* ------------------------------------------------------------ typography */
+
+/* Tracking is size-specific: large mono reads loose, small mono reads tight. */
+.display {
+  font-size: clamp(2rem, 4.5vw, 2.75rem);
+  line-height: 1.05;
+  letter-spacing: -0.045em;
+  font-weight: 500;
+}
+
+.title {
+  font-size: 1.375rem;
+  line-height: 1.2;
+  letter-spacing: -0.03em;
+  font-weight: 500;
+}
+
+.big {
+  font-size: 1.5rem;
+  line-height: 1.15;
+  letter-spacing: -0.035em;
+  font-weight: 400;
+}
+
+.lede {
+  color: var(--sub);
+  font-size: 0.8125rem;
+  line-height: 1.7;
+  max-width: 66ch;
+}
+
+.label {
+  font-size: 0.75rem;
+  color: var(--sub);
+}
+
+.micro {
+  font-size: 0.6875rem;
+  line-height: 1.6;
+  color: var(--sub);
+}
+
+.sub {
+  color: var(--sub);
+}
+
+.main {
+  color: var(--main);
+}
+
+/* ----------------------------------------------------------------- shell */
+
+.shell {
+  width: min(100% - 2rem, var(--page));
+  margin-inline: auto;
+}
+
+.page {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+.shell-fill {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.page main {
+  flex: 1;
+  padding-block: 3.5rem 5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 3rem;
+}
+
+/* ---------------------------------------------------------------- chrome */
+
+.topbar {
+  padding-block: 1.25rem;
+}
+
+.topbar-inner {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.wordmark {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1rem;
+  font-weight: 500;
+  letter-spacing: -0.04em;
+}
+
+.wordmark svg {
+  /* The mark is optically a touch heavier than the wordmark beside it, so it
+     sits a hair low without this. */
+  margin-top: -1px;
+}
+
+.navlinks {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  margin-right: auto;
+}
+
+.navlink {
+  font-size: 0.75rem;
+  color: var(--sub);
+  white-space: nowrap;
+}
+
+.navlink[data-active="true"] {
+  color: var(--text);
+}
+
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-shrink: 0;
+  font-size: 0.75rem;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .navlink:hover,
+  .topbar-right a:hover {
+    color: var(--text);
+  }
+
+  .icon-btn:hover {
+    color: var(--text);
+  }
+}
+
+.icon-btn {
+  border: 0;
+  background: none;
+  padding: 0;
+  color: var(--sub);
+  cursor: pointer;
+  display: inline-flex;
+  transition: color var(--t-fast) var(--ease);
+}
+
+/* -------------------------------------------------------------- controls */
+
+/*
+ * Flat fills, no outlines. Resting state is the recessed surface; the active
+ * or primary state is the accent. That contrast is the only emphasis the
+ * interface has, which is why nothing else is allowed to use it.
+ */
+.btn {
+  appearance: none;
+  border: 0;
+  background: var(--sub-alt);
+  color: var(--sub);
+  border-radius: var(--radius);
+  padding: 0.5rem 0.9rem;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  white-space: nowrap;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  transition:
+    color var(--t-fast) var(--ease),
+    background var(--t-fast) var(--ease),
+    transform var(--t-press) var(--ease);
+}
+
+.btn:active {
+  transform: scale(0.97);
+}
+
+.btn:disabled,
+/* The pager's ends are spans, not buttons, so :disabled never matches them. */
+.btn[aria-disabled="true"] {
+  opacity: 0.4;
+  cursor: default;
+  pointer-events: none;
+}
+
+.btn:disabled:active {
+  transform: none;
+}
+
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding-top: 0.25rem;
+}
+
+.btn.primary {
+  background: var(--main);
+  color: var(--on-main);
+}
+
+.btn.bare {
+  background: none;
+  padding-inline: 0;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .btn:hover:not(:disabled) {
+    background: var(--text);
+    color: var(--bg);
+  }
+
+  .btn.primary:hover:not(:disabled) {
+    background: var(--text);
+    color: var(--bg);
+  }
+
+  .btn.bare:hover:not(:disabled) {
+    background: none;
+    color: var(--text);
+  }
+}
+
+/* The active option is a filled pill that slides between the choices. */
+.segmented {
+  position: relative;
+  display: inline-flex;
+  gap: 0.25rem;
+}
+
+.segmented .thumb {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  border-radius: var(--radius);
+  background: var(--main);
+  transition:
+    transform var(--t-base) var(--ease),
+    width var(--t-base) var(--ease);
+  pointer-events: none;
+}
+
+.segmented .seg {
+  position: relative;
+  z-index: 1;
+  border: 0;
+  background: var(--sub-alt);
+  cursor: pointer;
+  padding: 0.4rem 0.75rem;
+  border-radius: var(--radius);
+  font-size: 0.75rem;
+  color: var(--sub);
+  white-space: nowrap;
+  transition:
+    color var(--t-fast) var(--ease),
+    transform var(--t-press) var(--ease);
+}
+
+.segmented .seg[data-active="true"] {
+  background: none;
+  color: var(--on-main);
+}
+
+.segmented .seg:active {
+  transform: scale(0.96);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .segmented .seg:not([data-active="true"]):hover {
+    color: var(--text);
+  }
+}
+
+/* ----------------------------------------------------------------- forms */
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.field > label {
+  font-size: 0.75rem;
+  color: var(--sub);
+}
+
+.input {
+  width: 100%;
+  background: var(--sub-alt);
+  border: 0;
+  border-radius: var(--radius);
+  padding: 0.6rem 0.8rem;
+  font-size: 0.8125rem;
+  color: var(--text);
+}
+
+.input::placeholder {
+  color: var(--sub);
+  opacity: 0.7;
+}
+
+.input:focus {
+  outline: 2px solid var(--main);
+  outline-offset: 0;
+}
+
+select.input {
+  cursor: pointer;
+}
+
+/* Settings row: label left, control right, nothing drawn between them. */
+.setting {
+  display: grid;
+  grid-template-columns: minmax(7rem, 13rem) 1fr;
+  gap: 1.5rem;
+  align-items: start;
+  padding-block: 1rem;
+}
+
+.setting > .setting-label {
+  font-size: 0.8125rem;
+  padding-top: 0.55rem;
+}
+
+.setting > .setting-label small {
+  display: block;
+  font-size: 0.6875rem;
+  color: var(--sub);
+  margin-top: 0.15rem;
+}
+
+/* ------------------------------------------------------------ preferences */
+
+.swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.swatch {
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 50%;
+  padding: 0;
+  cursor: pointer;
+  background: var(--main);
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+  transition:
+    outline-color var(--t-fast) var(--ease),
+    transform var(--t-press) var(--ease);
+}
+
+.swatch:active {
+  transform: scale(0.92);
+}
+
+.swatch[data-selected="true"] {
+  outline-color: var(--text);
+}
+
+/* A reorderable list of toggles: checkbox, label, then move up/down. */
+.picker {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.picker-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  background: var(--sub-alt);
+  border-radius: var(--radius);
+  padding: 0.45rem 0.6rem;
+  font-size: 0.8125rem;
+}
+
+.picker-row .name {
+  margin-right: auto;
+}
+
+.picker-row[data-on="false"] .name {
+  color: var(--sub);
+}
+
+.picker-row .ord {
+  border: 0;
+  background: none;
+  color: var(--sub);
+  cursor: pointer;
+  padding: 0 0.2rem;
+  line-height: 1;
+  transition: color var(--t-fast) var(--ease);
+}
+
+.picker-row .ord:disabled {
+  opacity: 0.25;
+  cursor: default;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .picker-row .ord:not(:disabled):hover {
+    color: var(--text);
+  }
+}
+
+.check {
+  appearance: none;
+  width: 15px;
+  height: 15px;
+  border-radius: 3px;
+  background: var(--bg);
+  cursor: pointer;
+  display: grid;
+  place-content: center;
+  flex-shrink: 0;
+}
+
+.check:checked {
+  background: var(--main);
+}
+
+.check:checked::after {
+  content: "";
+  width: 7px;
+  height: 4px;
+  border-left: 2px solid var(--on-main);
+  border-bottom: 2px solid var(--on-main);
+  rotate: -45deg;
+  translate: 0 -1px;
+}
+
+.switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  border: 0;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  font-size: 0.8125rem;
+  color: var(--sub);
+  transition: color var(--t-fast) var(--ease);
+}
+
+.switch:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.switch .track {
+  width: 34px;
+  height: 20px;
+  border-radius: 999px;
+  background: var(--bg);
+  padding: 3px;
+  display: block;
+  transition: background var(--t-fast) var(--ease);
+}
+
+.switch .track[data-on="true"] {
+  background: var(--main);
+}
+
+.switch .knob {
+  display: block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--sub);
+  transition:
+    translate var(--t-base) var(--ease),
+    background var(--t-fast) var(--ease);
+}
+
+.switch .track[data-on="true"] .knob {
+  translate: 14px 0;
+  background: var(--on-main);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .switch:not(:disabled):hover {
+    color: var(--text);
+  }
+}
+
+/* An input with a fixed, unselectable prefix in front of it. */
+.prefixed {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: var(--sub-alt);
+  border-radius: var(--radius);
+  padding-left: 0.8rem;
+}
+
+.prefixed .prefix {
+  color: var(--sub);
+  font-size: 0.8125rem;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.prefixed .input {
+  background: none;
+  padding-left: 0;
+}
+
+.keylist {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 0.9rem;
+  display: grid;
+  gap: 2px;
+}
+
+.keylist li {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  background: var(--sub-alt);
+  border-radius: var(--radius);
+  padding: 0.5rem 0.7rem;
+  font-size: 0.8125rem;
+  color: var(--sub);
+}
+
+.keylist .name {
+  color: var(--text);
+  margin-right: auto;
+}
+
+/* A dense rate table. Rows are lines, not pills: there are seven columns and
+   the pill treatment would break the alignment that makes them readable. */
+table.whatif {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+table.whatif th {
+  font-weight: 400;
+  font-size: 0.6875rem;
+  color: var(--sub);
+  text-align: left;
+  padding: 0 0 0.5rem;
+}
+
+table.whatif td {
+  padding: 0.3rem 0;
+}
+
+table.whatif th.r,
+table.whatif td.r {
+  text-align: right;
+  padding-left: 1.25rem;
+}
+
+table.whatif tr.anchor td {
+  padding-bottom: 0.55rem;
+  border-bottom: 1px solid var(--line, var(--sub-alt));
+}
+
+table.whatif tbody tr:not(.anchor):first-of-type td {
+  padding-top: 0.55rem;
+}
+
+/* Seven numeric columns will not fit a phone. Rather than hide any of them —
+   which would leave the footnote pointing at a column that is not there — the
+   answer leads and the rate detail scrolls into view. The model stays pinned
+   so a row is always identifiable. */
+table.whatif td:first-child,
+table.whatif th:first-child {
+  position: sticky;
+  left: 0;
+  background: var(--bg);
+  padding-right: 1rem;
+}
+
+.plans {
+  list-style: none;
+  padding: 0;
+  margin: 1.25rem 0 0;
+  display: grid;
+  gap: 2px;
+}
+
+.plans li {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  background: var(--sub-alt);
+  border-radius: var(--radius);
+  padding: 0.5rem 0.75rem;
+  font-size: 0.8125rem;
+}
+
+.plans .who {
+  color: var(--text);
+  min-width: 9rem;
+}
+
+.plans .what {
+  color: var(--sub);
+  margin-right: auto;
+}
+
+.plans .cost {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+/* One row per plan: provider, custom name, plan, kind, price, remove. */
+.plan-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.plan-row > .input {
+  min-width: 0;
+}
+
+.plan-row > select.input {
+  flex: 0 0 8.5rem;
+}
+
+.plan-row > select.input:nth-of-type(2) {
+  /* Wide enough for "subscription" plus the native dropdown arrow. */
+  flex: 0 0 9.5rem;
+}
+
+.plan-row > input.input {
+  flex: 1 1 8rem;
+}
+
+.plan-row .money {
+  display: flex;
+  flex: 0 0 6.5rem;
+  align-items: center;
+  gap: 0.25rem;
+  background: var(--sub-alt);
+  border-radius: var(--radius);
+  padding-left: 0.6rem;
+  color: var(--sub);
+  font-size: 0.8125rem;
+}
+
+.plan-row .money .input {
+  padding-left: 0;
+  background: none;
+}
+
+.plan-row > .btn.bare {
+  flex: 0 0 2.25rem;
+  align-self: stretch;
+  min-height: 2.25rem;
+  padding: 0;
+  text-align: center;
+  line-height: 1;
+  font-size: 1rem;
+}
+
+@media (max-width: 720px) {
+  /* Each plan wraps onto three lines here, and at the shared 0.4rem gap two
+     plans read as one six-field block. The provider goes full width so every
+     plan starts with its own name, and the extra margin separates them. */
+  .plan-row {
+    margin-bottom: 0.9rem;
+  }
+
+  .plan-row > select.input:first-of-type {
+    flex: 1 1 100%;
+  }
+
+  .plan-row > select.input:nth-of-type(2),
+  .plan-row > input.input {
+    flex: 1 1 8rem;
+  }
+
+  .plans li {
+    flex-wrap: wrap;
+  }
+
+  .plans .who {
+    min-width: 0;
+  }
+}
+
+/* -------------------------------------------------------- settings groups */
+
+.settings-group {
+  padding-top: 2.25rem;
+}
+
+.settings-group:first-of-type {
+  padding-top: 0.5rem;
+}
+
+.settings-group > header {
+  padding-bottom: 0.5rem;
+}
+
+.group-title {
+  font-size: 0.8125rem;
+  font-weight: 400;
+  color: var(--main);
+}
+
+/* --------------------------------------------------------- account section */
+
+.account-head {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+}
+
+.account-name {
+  font-size: 1.125rem;
+  line-height: 1.2;
+  letter-spacing: -0.03em;
+}
+
+/* Tabs as a row of flat pills, matching the leaderboard filters. */
+.subnav {
+  display: flex;
+  gap: 0.25rem;
+  flex-wrap: wrap;
+  margin-top: -1.5rem;
+}
+
+.subnav-tab {
+  padding: 0.4rem 0.75rem;
+  border-radius: var(--radius);
+  background: var(--sub-alt);
+  font-size: 0.75rem;
+  color: var(--sub);
+  white-space: nowrap;
+  transition:
+    color var(--t-fast) var(--ease),
+    background var(--t-fast) var(--ease);
+}
+
+.subnav-tab[data-active="true"] {
+  background: var(--main);
+  color: var(--on-main);
+}
+
+.subnav-tab.out {
+  background: none;
+  margin-left: auto;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .subnav-tab:not([data-active="true"]):hover {
+    color: var(--text);
+  }
+}
+
+/* ------------------------------------------------------------ account menu */
+
+.menu-wrap {
+  position: relative;
+}
+
+.menu-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  border: 0;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.75rem;
+}
+
+.menu-trigger[aria-expanded="true"] {
+  color: var(--text);
+}
+
+.menu {
+  position: absolute;
+  top: calc(100% + 0.75rem);
+  right: 0;
+  z-index: 50;
+  min-width: 13rem;
+  padding: 0.35rem;
+  border-radius: var(--radius);
+  background: var(--sub-alt);
+  outline: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
+  display: flex;
+  flex-direction: column;
+  animation: menu-in 120ms var(--ease);
+}
+
+/* An invisible bridge across the gap under the trigger, so the pointer never
+   leaves the menu on its way down into it. */
+.menu::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -0.75rem;
+  height: 0.75rem;
+}
+
+@keyframes menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.8125rem;
+  color: var(--sub);
+  text-align: left;
+  padding: 0.5rem 0.6rem;
+  border-radius: 4px;
+  transition:
+    color var(--t-fast) var(--ease),
+    background var(--t-fast) var(--ease);
+}
+
+.menu-item svg {
+  flex-shrink: 0;
+  opacity: 0.85;
+}
+
+.menu-item:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .menu-item:hover:not(:disabled) {
+    color: var(--text);
+    background: var(--bg);
+  }
+}
+
+/* A hairline with a word set into it, for an "or" between two choices. */
+.rule {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.6875rem;
+  color: var(--sub);
+}
+
+.rule::before,
+.rule::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--sub-alt);
+}
+
+/* ------------------------------------------------------------------ chips */
+
+.footer-chips {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border: 0;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.6875rem;
+  color: var(--sub);
+  transition: color var(--t-fast) var(--ease);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .chip:hover {
+    color: var(--main);
+  }
+}
+
+/* ----------------------------------------------------------------- sheets */
+
+/*
+ * A centred dialog over a dimmed page. Deliberately not a slide-in: the theme
+ * list recolours the whole site as you move down it, and a panel that is still
+ * animating makes that read as a glitch rather than a preview.
+ */
+.sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+  background: color-mix(in srgb, var(--bg) 55%, transparent);
+  animation: sheet-in 140ms var(--ease);
+}
+
+@keyframes sheet-in {
+  from {
+    opacity: 0;
+  }
+}
+
+.sheet {
+  width: min(100%, 34rem);
+  max-height: min(78vh, 40rem);
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  border-radius: var(--radius);
+  outline: 1px solid var(--sub-alt);
+  overflow: hidden;
+}
+
+.sheet.wide {
+  width: min(100%, 46rem);
+}
+
+.sheet-search {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.85rem 1rem;
+  color: var(--sub);
+  background: var(--sub-alt);
+}
+
+.sheet-input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: none;
+  outline: none;
+  font-size: 0.9375rem;
+  color: var(--text);
+}
+
+.sheet-input::placeholder {
+  color: var(--sub);
+}
+
+.sheet-list {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0.35rem 0;
+}
+
+.sheet-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.8125rem;
+  color: var(--sub);
+  text-align: left;
+  padding: 0.45rem 1rem;
+  transition:
+    color var(--t-fast) var(--ease),
+    background var(--t-fast) var(--ease);
+}
+
+.sheet-row[data-active="true"] {
+  background: var(--sub-alt);
+  color: var(--text);
+}
+
+.sheet-row[data-selected="true"] {
+  color: var(--text);
+}
+
+.sheet-row .tick {
+  width: 0.9rem;
+  flex-shrink: 0;
+  color: var(--main);
+}
+
+.sheet-name {
+  margin-right: auto;
+}
+
+/* bg of the theme, with its accent, muted and text colours on top */
+.swatch-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 5px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.swatch-pill > span {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  display: block;
+}
+
+.sheet-foot {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.6rem 1rem;
+  background: var(--sub-alt);
+}
+
+/* ----------------------------------------------------------------- notes */
+
+.notes {
+  padding: 0;
+}
+
+.release {
+  padding: 1.5rem;
+}
+
+.release + .release {
+  border-top: 1px solid var(--sub-alt);
+}
+
+.notes-list {
+  list-style: none;
+  padding: 0;
+  margin-top: 0.5rem;
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.8125rem;
+}
+
+.notes-list li {
+  display: flex;
+  gap: 0.6rem;
+}
+
+.notes-list li::before {
+  content: "-";
+  color: var(--sub);
+  flex-shrink: 0;
+}
+
+/* ---------------------------------------------------------------- tables */
+
+.table-wrap {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+
+table.t {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0 2px;
+  font-size: 0.8125rem;
+}
+
+table.t th {
+  text-align: left;
+  font-size: 0.6875rem;
+  font-weight: 400;
+  color: var(--sub);
+  padding: 0 0.85rem 0.5rem;
+  white-space: nowrap;
+}
+
+table.t td {
+  background: var(--sub-alt);
+  padding: 0.6rem 0.85rem;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+table.t tbody tr td:first-child {
+  border-top-left-radius: var(--radius);
+  border-bottom-left-radius: var(--radius);
+}
+
+table.t tbody tr td:last-child {
+  border-top-right-radius: var(--radius);
+  border-bottom-right-radius: var(--radius);
+}
+
+table.t .r {
+  text-align: right;
+}
+
+table.t tbody tr {
+  transition: color var(--t-fast) var(--ease);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  table.t tbody tr:hover td {
+    color: var(--main);
+  }
+}
+
+table.t tbody tr[data-me="true"] td {
+  color: var(--main);
+}
+
+/* Signed up, nothing in this window. The row is real and ranked, so it stays
+   legible — it just should not compete with the rows that have numbers. */
+table.t tbody tr[data-quiet="true"] td {
+  color: var(--sub);
+}
+
+/* Your own row, carried onto a page it is not part of. Without a break the
+   rank jumps from 15 to 75 against a 2px gap and reads as a data error. */
+table.t tbody tr[data-detached="true"] td {
+  border-top: 0.7rem solid transparent;
+  background-clip: padding-box;
+}
+
+table.t tbody tr[data-quiet="true"][data-me="true"] td {
+  color: var(--main);
+}
+
+/* Recessive but legible. `--sub-alt` is the row background, so a dash in it
+   disappears and the row reads as a rendering failure rather than a zero. */
+.idle {
+  color: color-mix(in srgb, var(--sub) 60%, var(--sub-alt));
+}
+
+table.t tbody tr:hover .idle,
+table.t tbody tr[data-me="true"] .idle {
+  color: inherit;
+}
+
+.rank {
+  color: var(--sub);
+  width: 2.5rem;
+}
+
+.move {
+  font-size: 0.6875rem;
+  color: var(--sub);
+  opacity: 0.7;
+}
+
+.move[data-dir="up"] {
+  color: var(--main);
+  opacity: 1;
+}
+
+.move[data-dir="down"] {
+  color: var(--error);
+  opacity: 1;
+}
+
+/* ------------------------------------------------------------------ bits */
+
+/* Two blocks side by side, stacking on a narrow screen. */
+.split {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
+  gap: 3rem;
+  align-items: start;
+}
+
+.split > * {
+  min-width: 0;
+}
+
+.sync {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.45rem 0;
+  font-size: 0.8125rem;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.spread {
+  justify-content: space-between;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+  gap: 1.5rem 2rem;
+}
+
+.stats > * {
+  min-width: 0;
+}
+
+.stat .k {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--sub);
+}
+
+.stat .v {
+  display: block;
+  margin-top: 0.3rem;
+  font-size: 1.5rem;
+  line-height: 1.15;
+  letter-spacing: -0.035em;
+}
+
+.stat .v.idle {
+  color: var(--sub);
+}
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 3px;
+  background: var(--sub-alt);
+  padding: 0.05rem 0.35rem;
+  font-size: 0.6875rem;
+  color: var(--sub);
+  white-space: nowrap;
+}
+
+.tag.on {
+  color: var(--main);
+}
+
+.avatar {
+  border-radius: 50%;
+  overflow: hidden;
+  flex-shrink: 0;
+  display: block;
+}
+
+.empty {
+  padding: 3rem 0;
+  color: var(--sub);
+  font-size: 0.8125rem;
+}
+
+.notice {
+  border-radius: var(--radius);
+  background: var(--sub-alt);
+  border-left: 2px solid var(--error);
+  padding: 0.55rem 0.8rem;
+  font-size: 0.8125rem;
+}
+
+.notice.ok {
+  border-left-color: var(--main);
+}
+
+.kbd {
+  background: var(--sub-alt);
+  border-radius: 3px;
+  padding: 0.05rem 0.3rem;
+  font-size: 0.75rem;
+  color: var(--sub);
+}
+
+.bar {
+  height: 3px;
+  border-radius: 2px;
+  background: var(--sub-alt);
+  overflow: hidden;
+}
+
+.bar > span {
+  display: block;
+  height: 100%;
+  background: var(--main);
+  border-radius: 2px;
+}
+
+.divider {
+  height: 1px;
+  border: 0;
+  margin: 0;
+  background: var(--sub-alt);
+}
+
+.footer {
+  padding-block: 1.5rem 2.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  align-items: center;
+  font-size: 0.6875rem;
+  color: var(--sub);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .footer a:hover {
+    color: var(--text);
+  }
+}
+
+/* --------------------------------------------------------------- profile */
+
+.profile-head {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.profile-name {
+  font-size: 1.375rem;
+  line-height: 1.2;
+  letter-spacing: -0.035em;
+  font-weight: 500;
+}
+
+.profile-handle {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  color: var(--sub);
+  font-size: 0.75rem;
+  margin-top: 0.1rem;
+}
+
+.links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+  font-size: 0.75rem;
+}
+
+.links a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--sub);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .links a:hover {
+    color: var(--text);
+  }
+}
+
+.block-label {
+  font-size: 0.75rem;
+  color: var(--sub);
+}
+
+.block-value {
+  margin-top: 0.25rem;
+  font-size: 1.375rem;
+  line-height: 1.2;
+  letter-spacing: -0.035em;
+}
+
+.axis {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 0.5rem;
+  font-size: 0.6875rem;
+  color: var(--sub);
+}
+
+/* --------------------------------------------------------------- heatmap */
+
+.heat {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0 0.5rem;
+  align-items: start;
+}
+
+.heat-months {
+  grid-column: 2;
+  display: flex;
+  font-size: 0.6875rem;
+  color: var(--sub);
+  margin-bottom: 0.35rem;
+}
+
+.heat-days {
+  grid-column: 1;
+  display: grid;
+  grid-template-rows: repeat(7, 11px);
+  gap: 3px;
+  font-size: 0.625rem;
+  color: var(--sub);
+  line-height: 11px;
+}
+
+.heat-grid {
+  grid-column: 2;
+  display: flex;
+  gap: 3px;
+}
+
+.heat-col {
+  display: grid;
+  grid-template-rows: repeat(7, 11px);
+  gap: 3px;
+}
+
+.dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 2px;
+  background: var(--sub-alt);
+}
+
+.dot[data-level="1"] {
+  background: color-mix(in srgb, var(--main) 25%, var(--bg));
+}
+
+.dot[data-level="2"] {
+  background: color-mix(in srgb, var(--main) 50%, var(--bg));
+}
+
+.dot[data-level="3"] {
+  background: color-mix(in srgb, var(--main) 75%, var(--bg));
+}
+
+.dot[data-level="4"] {
+  background: var(--main);
+}
+
+/* -------------------------------------------------------------- terminal */
+
+.term {
+  border-radius: var(--radius);
+  background: var(--sub-alt);
+  font-size: 0.8125rem;
+  overflow: hidden;
+}
+
+.term-line {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.6rem 0.85rem;
+  background: none;
+  border: 0;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  transition: color var(--t-fast) var(--ease);
+}
+
+.term-line .prompt {
+  color: var(--sub);
+  user-select: none;
+}
+
+.term-line .copy {
+  margin-left: auto;
+  color: var(--sub);
+  display: inline-flex;
+  opacity: 0;
+  transition: opacity var(--t-fast) var(--ease);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .term-line:hover {
+    color: var(--main);
+  }
+
+  .term-line:hover .copy {
+    opacity: 1;
+  }
+}
+
+/* -------------------------------------------------------------- entrance */
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.rise {
+  animation: rise var(--t-base) var(--ease) both;
+  animation-delay: calc(var(--i, 0) * 10ms);
+}
+
+.scroll-x {
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.scroll-x::-webkit-scrollbar {
+  display: none;
+}
+
+/* ------------------------------------------------------------ responsive */
+
+@media (max-width: 720px) {
+  .stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .setting {
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+  }
+
+  .setting > .setting-label {
+    padding-top: 0;
+  }
+
+  .navlinks {
+    gap: 0.9rem;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .navlinks::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@media (max-width: 560px) {
+  .shell {
+    width: calc(100% - 1.5rem);
+  }
+
+  .page main {
+    padding-block: 2rem 3.5rem;
+    gap: 2.25rem;
+  }
+
+  .stat .v {
+    font-size: 1.25rem;
+  }
+}
+
+/* --------------------------------------------------------- reduced motion */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .btn:active,
+  .segmented .seg:active {
+    transform: none;
+  }
+}
+
+/* Terms and privacy: long-form prose, wider line height than the rest of the
+   site because these are the pages people actually have to read. */
+.legal p {
+  color: var(--sub);
+  font-size: 0.875rem;
+  line-height: 1.85;
+}
+
+.legal li {
+  color: var(--sub);
+  font-size: 0.875rem;
+  line-height: 1.7;
+}
+
+.legal a {
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+/* ---------------------------------------------------------------- linking
+
+   The moment a machine connects is the one piece of feedback in the whole
+   flow that arrives on its own, while the user is looking at a different
+   window. It should be unmistakable when they look back, and it should not
+   move again once it has landed. */
+
+@keyframes tokn-pop {
+  0% {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.08);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes tokn-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* One ring, travelling outwards and fading. Reads as "this just happened"
+   without the panel jumping around. */
+@keyframes tokn-ring {
+  0% {
+    transform: scale(0.6);
+    opacity: 0.55;
+  }
+  100% {
+    transform: scale(2.1);
+    opacity: 0;
+  }
+}
+
+@keyframes tokn-rise {
+  from {
+    transform: translateY(6px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.tokn-connected-mark {
+  position: relative;
+  width: 2.75rem;
+  height: 2.75rem;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--main) 14%, transparent);
+  animation: tokn-pop 420ms var(--ease) both;
+}
+
+.tokn-connected-mark::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1px solid var(--main);
+  animation: tokn-ring 900ms 180ms var(--ease) both;
+}
+
+.tokn-connected-mark svg path {
+  stroke-dasharray: 26;
+  stroke-dashoffset: 26;
+  animation: tokn-draw 380ms 260ms var(--ease) forwards;
+}
+
+/* Each line arrives just after the one above it, so the eye is led down the
+   panel instead of everything appearing at once. */
+.tokn-rise {
+  animation: tokn-rise 380ms var(--ease) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tokn-connected-mark,
+  .tokn-connected-mark::after,
+  .tokn-connected-mark svg path,
+  .tokn-rise {
+    animation: none;
+  }
+  .tokn-connected-mark svg path {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* ------------------------------------------------------------ prose pages */
+
+/*
+ * A page you read rather than scan. One column, capped at a comfortable
+ * measure, with the space between sections doing the work that rules and
+ * boxes would do elsewhere.
+ */
+
+/*
+ * Centred reading column at the same 42rem the legal pages use, with a lane
+ * either side so the data blocks can break out. A rate card with seven columns
+ * squeezed into the text measure would scroll sideways for no reason, and the
+ * figures band reads as a band only at full width.
+ */
+.prose-page {
+  display: grid;
+  grid-template-columns: 1fr min(42rem, 100%) 1fr;
+  row-gap: 3.5rem;
+}
+
+.prose-page > * {
+  grid-column: 2;
+  min-width: 0;
+}
+
+.prose-page > .bleed {
+  grid-column: 1 / -1;
+}
+
+.prose-page > section {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.prose-page .block-label {
+  font-weight: 400;
+}
+
+.prose {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  max-width: 68ch;
+}
+
+.prose p {
+  color: var(--sub);
+  font-size: 0.875rem;
+  line-height: 1.75;
+}
+
+/* The figures band. Two rows of four on a wide screen, folding to two across
+   on a phone rather than one, so it stays a band and not a list. */
+.about-figures {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1.75rem 2rem;
+}
+
+@media (max-width: 720px) {
+  .about-figures {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.about-figures .v {
+  font-size: 1.25rem;
+}
+
+.steps {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  list-style: none;
+  max-width: 68ch;
+}
+
+.steps li {
+  display: grid;
+  grid-template-columns: 1.6rem 1fr;
+  gap: 0.9rem;
+  align-items: start;
+}
+
+.steps-n {
+  font-size: 0.75rem;
+  line-height: 1.75;
+  color: var(--main);
+  font-variant-numeric: tabular-nums;
+}
+
+.steps-head {
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+.steps-body {
+  margin-top: 0.35rem;
+  color: var(--sub);
+  font-size: 0.875rem;
+  line-height: 1.75;
+}
+
+.plain-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-width: 68ch;
+}
+
+.plain-list li {
+  position: relative;
+  padding-left: 1.1rem;
+  color: var(--sub);
+  font-size: 0.875rem;
+  line-height: 1.75;
+}
+
+.plain-list li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.72em;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--main);
+}
+
+.payload {
+  margin: 0;
+  padding: 1rem 1.25rem;
+  border-radius: var(--radius);
+  background: var(--sub-alt);
+  font-size: 0.75rem;
+  line-height: 1.7;
+  color: var(--sub);
+  overflow-x: auto;
+}

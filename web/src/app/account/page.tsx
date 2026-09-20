@@ -1,0 +1,193 @@
+import type { Metadata } from "next";
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { ProfileView } from "@/components/ProfileView";
+import { Terminal } from "@/components/Terminal";
+import { niceDay, relative } from "@/lib/format";
+import {
+  clearSessionCookie,
+  currentUser,
+  deleteSession,
+  listDevices,
+  revokeDevice,
+} from "@/lib/auth";
+import { rankOf, syncInfo } from "@/lib/stats";
+
+export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = { title: "Account — tokn" };
+
+async function revoke(formData: FormData) {
+  "use server";
+  const user = await currentUser();
+  if (!user) return;
+  const deviceId = formData.get("deviceId");
+  if (typeof deviceId === "string") await revokeDevice(user.id, deviceId);
+  redirect("/account");
+}
+
+async function signOut() {
+  "use server";
+  const sessionId = await clearSessionCookie();
+  if (sessionId) await deleteSession(sessionId);
+  redirect("/");
+}
+
+export default async function AccountPage() {
+  const user = await currentUser();
+  if (!user) redirect("/login?next=/account");
+
+  const devices = await listDevices(user.id);
+  const sync = await syncInfo(user.id);
+
+  return (
+    <>
+      <ProfileView
+        user={{
+          id: user.id,
+          handle: user.handle,
+          name: user.name,
+          bio: user.bio,
+          createdAt: user.created_at,
+          billing: user.billing,
+          links: user.links,
+          prefs: user.prefs ?? null,
+          plans: user.plans ?? null,
+          avatarUrl: user.avatarUrl ?? null,
+          isPublic: user.isPublic,
+          listed: user.listed,
+        }}
+        rank={await rankOf(user.id, "all", "cost")}
+        own
+        identity={false}
+      />
+
+      <hr className="divider" style={{ marginTop: "1rem" }} />
+
+      <section>
+        <div className="row spread">
+          <p className="block-label">connected machines</p>
+          <span className="micro">
+            {devices.length === 0
+              ? "none yet"
+              : `last sync ${relative(sync.lastSyncAt)}`}
+          </span>
+        </div>
+
+        {devices.length === 0 ? (
+          <div style={{ maxWidth: "28rem" }}>
+            <p
+              className="sub"
+              style={{ fontSize: "0.8125rem", marginBottom: "1rem" }}
+            >
+              no machine is reporting yet — install the cli and connect one
+            </p>
+            <Terminal commands={["npm install -g tokn", "tokn link"]} />
+            <Link
+              href="/link"
+              className="btn primary"
+              style={{ marginTop: "1rem" }}
+            >
+              get a link code
+            </Link>
+          </div>
+        ) : (
+          <>
+            <div className="table-wrap">
+              <table className="t">
+                <thead>
+                  <tr>
+                    <th>host</th>
+                    <th>platform</th>
+                    <th>cli</th>
+                    <th>connected</th>
+                    <th>last sync</th>
+                    <th className="r" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {devices.map((device) => (
+                    <tr key={device.id}>
+                      <td>{device.hostname ?? "unknown"}</td>
+                      <td className="sub">{device.platform ?? "—"}</td>
+                      <td className="sub">{device.cli_version ?? "—"}</td>
+                      <td className="sub">
+                        {niceDay(device.linked_at.slice(0, 10))}
+                      </td>
+                      <td className="sub">{relative(device.last_sync_at)}</td>
+                      <td className="r">
+                        <form action={revoke}>
+                          <input
+                            type="hidden"
+                            name="deviceId"
+                            value={device.id}
+                          />
+                          <button
+                            type="submit"
+                            className="btn bare"
+                            title="Revoke this token"
+                          >
+                            revoke
+                          </button>
+                        </form>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                gap: "1rem",
+                marginTop: "1rem",
+                flexWrap: "wrap",
+              }}
+            >
+              <span className="micro">
+                revoking kills the token immediately —{" "}
+                <span className="kbd">tokn unlink</span> only clears local
+                config
+              </span>
+              <Link href="/link" className="btn">
+                connect another
+              </Link>
+            </div>
+          </>
+        )}
+      </section>
+
+      <hr className="divider" />
+
+      <section
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: "1rem",
+          flexWrap: "wrap",
+        }}
+      >
+        <div>
+          <p className="block-label">signed in as</p>
+          <p className="sub" style={{ marginTop: "0.3rem" }}>
+            {user.handle} <span className="dot-sep">·</span> billing{" "}
+            {user.billing}
+          </p>
+        </div>
+        <div style={{ display: "flex", gap: "0.5rem" }}>
+          <Link href="/account/settings" className="btn">
+            settings
+          </Link>
+          <form action={signOut}>
+            <button type="submit" className="btn">
+              sign out
+            </button>
+          </form>
+        </div>
+      </section>
+    </>
+  );
+}
