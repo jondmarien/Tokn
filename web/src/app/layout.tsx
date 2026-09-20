@@ -131,8 +131,8 @@ export default async function RootLayout({
                 </Link>
               </nav>
 
-              {/* Controls rather than destinations, so they sit under the row
-                  instead of competing with it. */}
+              {/* Controls rather than destinations, so they sit apart from
+                  the links rather than in the run of them. */}
               <div className="footer-chips">
                 <ThemePicker />
                 <VersionChip />

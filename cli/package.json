@@ -1,5 +1,5 @@
 {
-  "name": "tokn",
+  "name": "toknhq",
   "version": "0.1.0",
   "description": "Track your AI coding usage across every CLI you use, and publish it to the leaderboard.",
   "type": "module",
@@ -12,7 +12,7 @@
     "README.md"
   ],
   "engines": {
-    "node": ">=18.17"
+    "node": ">=22.5.0"
   },
   "scripts": {
     "build": "node scripts/check-escapes.mjs && tsc && chmod +x dist/index.js",
@@ -23,16 +23,14 @@
     "check:escapes": "node scripts/check-escapes.mjs"
   },
   "keywords": [
+    "ai",
+    "cli",
+    "tokens",
+    "usage",
     "claude",
     "codex",
     "copilot",
-    "opencode",
-    "cursor",
-    "ai",
-    "usage",
-    "tokens",
-    "cost",
-    "leaderboard"
+    "cost"
   ],
   "license": "GPL-3.0-or-later",
   "devDependencies": {

@@ -1,7 +1,7 @@
 "use client";
 
-import { startAuthentication } from "@simplewebauthn/browser";
-import { useState } from "react";
+import { browserSupportsWebAuthn, startAuthentication } from "@simplewebauthn/browser";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 /**
@@ -21,6 +21,16 @@ export function AuthForm({
 }) {
   const router = useRouter();
   const [mode, setMode] = useState<"login" | "signup">("login");
+  /**
+   * Whether to offer passkeys at all.
+   *
+   * Decided after mount rather than during render: the server cannot know what
+   * the browser supports, and guessing produces a button that either flickers
+   * away on hydration or sits there failing on a browser that has no
+   * authenticator.
+   */
+  const [passkeys, setPasskeys] = useState(false);
+  useEffect(() => setPasskeys(browserSupportsWebAuthn()), []);
   const [handle, setHandle] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(initialError);
@@ -97,13 +107,45 @@ export function AuthForm({
         your handle is what appears on the board. no email, no verification.
       </p>
 
+      {/*
+        Passkeys first. Someone returning with one wants the fastest way in,
+        and putting it under the password fields made the quickest option the
+        least visible thing on the page. Rendered only where the browser has
+        an authenticator to offer.
+      */}
+      {mode === "login" && passkeys && (
+        <button
+          type="button"
+          className="btn"
+          onClick={withPasskey}
+          disabled={busy}
+          style={{
+            marginTop: "1.75rem",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "0.55rem",
+            width: "100%",
+          }}
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor"
+               strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <circle cx="5.6" cy="5.6" r="3.2" />
+            <path d="M8 8 13.6 13.6" />
+            <path d="M11.2 11.2 10 12.4" />
+            <path d="M13.6 13.6 12.4 14.8" />
+          </svg>
+          use a passkey
+        </button>
+      )}
+
       {github && (
         <>
           <a
             className="btn"
             href={`/api/auth/github?next=${encodeURIComponent(next)}`}
             style={{
-              marginTop: "1.75rem",
+              marginTop: mode === "login" && passkeys ? "0.6rem" : "1.75rem",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -173,16 +215,6 @@ export function AuthForm({
           {busy ? "…" : mode === "login" ? "sign in" : "create account"}
         </button>
 
-        {mode === "login" && (
-          <>
-            <div className="rule">
-              <span>or</span>
-            </div>
-            <button type="button" className="btn" onClick={withPasskey} disabled={busy}>
-              use a passkey
-            </button>
-          </>
-        )}
       </form>
 
       <p className="micro" style={{ marginTop: "1.5rem", textAlign: "center" }}>

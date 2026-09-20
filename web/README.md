@@ -377,9 +377,10 @@ anything that is not http(s), so `javascript:` can never reach an href.
 
 ## The footer
 
-One centred row of icon and label — stats, about, connect, settings, github, x,
-terms, privacy — with the theme picker and version chip on a second line under
-it, since those are controls rather than destinations. Icons come from
+One row: icon-and-label links on the left — stats, about, connect, settings,
+github, x, terms, privacy — and the theme picker and version chip held to the
+right edge, since those are controls rather than destinations. On a phone the
+links wrap to two rows and the chips follow. Icons come from
 `components/Glyphs.tsx`; brand marks from `components/SocialIcon.tsx`.
 
 `Glyphs.tsx` exists so the same idea keeps the same mark. The plug in the

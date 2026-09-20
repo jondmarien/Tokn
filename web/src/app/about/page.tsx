@@ -121,7 +121,7 @@ export default async function AboutPage() {
       <section>
         <h2 className="block-label">how it works</h2>
         <Terminal
-          commands={["npm install -g tokn", "tokn link", "tokn sync"]}
+          commands={["npm install -g toknhq", "tokn link", "tokn sync"]}
         />
 
         <ol className="steps">

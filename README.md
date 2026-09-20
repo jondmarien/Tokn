@@ -7,7 +7,7 @@ prices the tokens against published API rates, and publishes daily totals to a
 leaderboard.
 
 ```bash
-npm install -g tokn
+npm install -g toknhq
 tokn
 ```
 

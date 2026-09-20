@@ -82,7 +82,7 @@ export default async function AccountPage() {
             >
               no machine is reporting yet — install the cli and connect one
             </p>
-            <Terminal commands={["npm install -g tokn", "tokn link"]} />
+            <Terminal commands={["npm install -g toknhq", "tokn link"]} />
             <Link
               href="/link"
               className="btn primary"

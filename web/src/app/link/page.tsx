@@ -38,7 +38,7 @@ export default async function LinkPage() {
           <p className="block-label" style={{ marginBottom: "1rem" }}>
             three commands
           </p>
-          <Terminal commands={["npm install -g tokn", "tokn link", "tokn sync"]} />
+          <Terminal commands={["npm install -g toknhq", "tokn link", "tokn sync"]} />
 
           <ol
             className="micro"

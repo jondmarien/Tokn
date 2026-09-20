@@ -4,7 +4,7 @@ Track your AI coding usage across every CLI you use, and publish it to the
 leaderboard.
 
 ```
-npm install -g tokn
+npm install -g toknhq
 tokn setup
 ```
 
