@@ -59,14 +59,50 @@ export async function upsertPrices(rows: PriceRow[]): Promise<number> {
     await db().upsertDocuments(DB_ID, "pricing", chunk as never);
     written += chunk.length;
   }
+  // New rows mean the memoised table is stale; drop it so the next
+  // read sees what was just written rather than the last minute's prices.
+  clearPricingCache();
   return written;
 }
 
+/**
+ * In-flight and recently-resolved price table.
+ *
+ * A single profile render asks for this twice — once for the cost anatomy,
+ * once for the what-if comparison — and each call was paging 702 models at a
+ * hundred a time, so the page paid for eight sequential round trips, twice.
+ *
+ * Prices come from a generated catalogue and change when someone runs the
+ * refresh, not between two awaits of the same request. Sharing the promise
+ * collapses the duplicate work; the short expiry keeps a long-lived server
+ * from pinning a stale table.
+ */
+let priceCache: { at: number; table: Promise<Record<string, CliPrice>> } | null = null;
+const PRICE_TTL_MS = 60_000;
+
 /** Every price, as the map the CLI consumes. */
 export async function pricingTable(): Promise<Record<string, CliPrice>> {
+  if (priceCache && Date.now() - priceCache.at < PRICE_TTL_MS) return priceCache.table;
+  const table = loadPricingTable();
+  priceCache = { at: Date.now(), table };
+  // A failed load must not be cached, or one blip poisons the next minute.
+  table.catch(() => {
+    if (priceCache?.table === table) priceCache = null;
+  });
+  return table;
+}
+
+/** Drop the memo. Used after a pricing refresh writes new rows. */
+export function clearPricingCache(): void {
+  priceCache = null;
+}
+
+async function loadPricingTable(): Promise<Record<string, CliPrice>> {
   const out: Record<string, CliPrice> = {};
   let cursor: string | undefined;
-  const PAGE = 100;
+  // 702 models at 100 a page is eight sequential round trips. Appwrite will
+  // return the whole catalogue in one.
+  const PAGE = 1000;
 
   for (;;) {
     const queries = [Query.limit(PAGE), Query.orderAsc("$id")];
