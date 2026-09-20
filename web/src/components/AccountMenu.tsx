@@ -1,6 +1,15 @@
 "use client";
 
 import Link from "next/link";
+import {
+  ChartGlyph,
+  CogGlyph,
+  ExitGlyph,
+  FriendsGlyph,
+  GlobeGlyph,
+  PersonGlyph,
+  PlugGlyph,
+} from "./Glyphs";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -187,81 +196,5 @@ function MenuLink({
       {icon}
       {children}
     </Link>
-  );
-}
-
-/* ---------------------------------------------------------------- glyphs */
-
-const stroke = {
-  fill: "none",
-  stroke: "currentColor",
-  strokeWidth: 1.8,
-  strokeLinecap: "round" as const,
-  strokeLinejoin: "round" as const,
-  "aria-hidden": true as const,
-};
-
-function PersonGlyph() {
-  return (
-    <svg width="13" height="13" viewBox="0 0 24 24" {...stroke}>
-      <circle cx="12" cy="8" r="3.5" />
-      <path d="M4.5 20a7.5 7.5 0 0 1 15 0" />
-    </svg>
-  );
-}
-
-function PlugGlyph() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" {...stroke}>
-      <path d="M9 3v5M15 3v5" />
-      <path d="M6 8h12v3a6 6 0 0 1-12 0V8Z" />
-      <path d="M12 17v4" />
-    </svg>
-  );
-}
-
-function ChartGlyph() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" {...stroke}>
-      <path d="M3 17l5-6 4 3 5-7" />
-      <path d="M3 21h18" />
-    </svg>
-  );
-}
-
-function FriendsGlyph() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" {...stroke}>
-      <circle cx="9" cy="8" r="3" />
-      <path d="M3 19a6 6 0 0 1 12 0" />
-      <path d="M16 6.5a3 3 0 0 1 0 5.5M17.5 19a6 6 0 0 0-2-4.2" />
-    </svg>
-  );
-}
-
-function GlobeGlyph() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" {...stroke}>
-      <circle cx="12" cy="12" r="8.5" />
-      <path d="M3.5 12h17M12 3.5a15 15 0 0 1 0 17 15 15 0 0 1 0-17Z" />
-    </svg>
-  );
-}
-
-function CogGlyph() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" {...stroke}>
-      <circle cx="12" cy="12" r="3" />
-      <path d="M12 2.5v2.2M12 19.3v2.2M21.5 12h-2.2M4.7 12H2.5M18.7 5.3l-1.6 1.6M6.9 17.1l-1.6 1.6M18.7 18.7l-1.6-1.6M6.9 6.9 5.3 5.3" />
-    </svg>
-  );
-}
-
-function ExitGlyph() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" {...stroke}>
-      <path d="M10 20H5.5A1.5 1.5 0 0 1 4 18.5v-13A1.5 1.5 0 0 1 5.5 4H10" />
-      <path d="m16 15 4-3-4-3M20 12H9" />
-    </svg>
   );
 }

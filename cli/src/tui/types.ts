@@ -73,14 +73,16 @@ export interface DayPoint {
   cost: number;
   tokens: number;
   requests: number;
-}
-
-export interface ModelPoint extends DayPoint {
-  model: string;
+  /** The day's tokens split by kind. Present since the per-day token chart. */
   input: number;
   output: number;
-  cacheRead: number;
   cacheWrite: number;
+  cacheRead: number;
+}
+
+/** DayPoint already carries the token split, so this only adds the model. */
+export interface ModelPoint extends DayPoint {
+  model: string;
 }
 
 export interface UserStats {

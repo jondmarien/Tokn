@@ -375,6 +375,31 @@ appear; anything unrecognised gets a globe and its hostname, which keeps
 personal sites first-class. `normalizeLink` accepts bare hosts and rejects
 anything that is not http(s), so `javascript:` can never reach an href.
 
+## The footer
+
+One centred row of icon and label — stats, about, connect, settings, github, x,
+terms, privacy — with the theme picker and version chip on a second line under
+it, since those are controls rather than destinations. Icons come from
+`components/Glyphs.tsx`; brand marks from `components/SocialIcon.tsx`.
+
+`Glyphs.tsx` exists so the same idea keeps the same mark. The plug in the
+account menu and the plug in the footer are one path, and stay that way when
+one of them is redrawn.
+
+## Links
+
+`lib/site.ts` holds the GitHub and X URLs, the X handle, and `ISSUES_URL`. One
+place, because they appear in the footer, on the about page, in the terms and
+privacy pages, in settings and in the Twitter card metadata — and a link that
+is stale in one of six spots is what happens when they are typed out each time.
+
+`ISSUES_URL` is the repo's issue tracker, not the organisation page. Terms and
+privacy both promise that questions and data requests are handled by opening an
+issue, so the link has to land somewhere that has one.
+
+- source: https://github.com/toknlabs/Tokn
+- x: https://x.com/trytokn
+
 ## Notes
 
 - `tokn unlink` only clears local config; it does not revoke the token

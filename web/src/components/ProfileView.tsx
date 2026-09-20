@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AreaChart, ShareBars } from "@/components/Charts";
+import { AreaChart, ShareBars, StackedDays } from "@/components/Charts";
 import { Avatar } from "@/components/Avatar";
 import { Heatmap } from "@/components/Heatmap";
 import { ShareButton } from "@/components/ShareButton";
@@ -284,18 +284,36 @@ function Block({
         <Labelled
           label="tokens"
           value={`${compact(stats.totals.tokens)} tokens`}
+          from={recent[0]?.day}
         >
-          <ShareBars
-            rows={[
-              { label: "cache read", value: stats.tokens.cacheRead },
-              { label: "cache write", value: stats.tokens.cacheWrite },
-              { label: "output", value: stats.tokens.output },
-              { label: "input", value: stats.tokens.input },
-            ].map((row) => ({
-              ...row,
-              display: `${compact(row.value)} · ${percent(row.value, stats.totals.tokens)}`,
+          {/* Per day first, then the all-time split. The chart answers "when",
+              the bars answer "what of" — the two together are what makes a
+              spike explainable rather than just visible. */}
+          <StackedDays
+            days={recent.map((point) => ({
+              day: point.day,
+              parts: [
+                { label: "cache read", value: point.cacheRead },
+                { label: "cache write", value: point.cacheWrite },
+                { label: "output", value: point.output },
+                { label: "input", value: point.input },
+              ],
             }))}
+            format={(value) => `${compact(value)} tokens`}
           />
+          <div style={{ marginTop: "1.1rem" }}>
+            <ShareBars
+              rows={[
+                { label: "cache read", value: stats.tokens.cacheRead },
+                { label: "cache write", value: stats.tokens.cacheWrite },
+                { label: "output", value: stats.tokens.output },
+                { label: "input", value: stats.tokens.input },
+              ].map((row) => ({
+                ...row,
+                display: `${compact(row.value)} · ${percent(row.value, stats.totals.tokens)}`,
+              }))}
+            />
+          </div>
         </Labelled>
       );
 

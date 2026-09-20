@@ -1090,7 +1090,6 @@ table.whatif th:first-child {
 /* ------------------------------------------------------------------ chips */
 
 .footer-chips {
-  margin-left: auto;
   display: flex;
   align-items: center;
   gap: 0.75rem;
@@ -1518,13 +1517,42 @@ table.t tbody tr[data-me="true"] .idle {
 }
 
 .footer {
-  padding-block: 1.5rem 2.5rem;
+  padding-block: 2.5rem 2.75rem;
   display: flex;
-  flex-wrap: wrap;
-  gap: 1.5rem;
+  flex-direction: column;
   align-items: center;
+  gap: 1.25rem;
   font-size: 0.6875rem;
   color: var(--sub);
+}
+
+/*
+ * One centred row of icon and label. The icon carries the recognition and the
+ * word carries the meaning, so neither has to work alone — which is what lets
+ * the row stay this small and still be readable.
+ */
+.footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.4rem 1.4rem;
+}
+
+.footer-links a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  /* Vertical padding rather than height, so the row wraps to a sensible
+     rhythm on a phone while each link keeps a thumb-sized target. */
+  padding: 0.4rem 0;
+  color: var(--sub);
+  transition: color var(--t-fast) var(--ease);
+}
+
+.footer-links svg {
+  flex: none;
+  /* Optical: a 13px glyph beside 11px type sits a shade high on the baseline. */
+  transform: translateY(0.5px);
 }
 
 @media (hover: hover) and (pointer: fine) {

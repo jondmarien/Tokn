@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { LegalPage, Section } from "@/components/LegalPage";
+import { ISSUES_URL } from "@/lib/site";
 
 export const metadata: Metadata = { title: "Terms — tokn" };
 
@@ -71,11 +72,20 @@ export default function TermsPage() {
 
       <Section heading="fair use">
         <p>Do not:</p>
-        <ul style={{ margin: 0, paddingLeft: "1.1rem", display: "grid", gap: "0.4rem" }}>
+        <ul
+          style={{
+            margin: 0,
+            paddingLeft: "1.1rem",
+            display: "grid",
+            gap: "0.4rem",
+          }}
+        >
           <li>send made up numbers, or edit your logs to inflate them</li>
           <li>sync usage that is not yours</li>
           <li>run multiple accounts for one person</li>
-          <li>hammer the API, or try to read other people&apos;s private data</li>
+          <li>
+            hammer the API, or try to read other people&apos;s private data
+          </li>
           <li>
             put anything in your handle, name, bio or links that is illegal,
             abusive, or impersonates somebody else
@@ -105,9 +115,9 @@ export default function TermsPage() {
 
       <Section heading="the command line tool">
         <p>
-          The CLI is open source under the GNU General Public License v3. You can read it, change
-          it and run your own copy. It only ever reads log files; it does not
-          modify them, and it does not read your code.
+          The CLI is open source under the GNU General Public License v3. You
+          can read it, change it and run your own copy. It only ever reads log
+          files; it does not modify them, and it does not read your code.
         </p>
       </Section>
 
@@ -142,7 +152,7 @@ export default function TermsPage() {
           Questions, complaints and data requests go to the same place: open an
           issue on the{" "}
           <a
-            href="https://github.com/toknlabs"
+            href={ISSUES_URL}
             className="main link"
             rel="noreferrer"
             target="_blank"

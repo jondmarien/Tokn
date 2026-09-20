@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Terminal } from "@/components/Terminal";
+import { SOURCE_URL, X_HANDLE, X_URL } from "@/lib/site";
 import { compact, count, money, niceDay } from "@/lib/format";
 import { siteStats } from "@/lib/site-stats";
 
@@ -236,6 +237,27 @@ export default async function AboutPage() {
             are both short and say what they mean. If a number here looks wrong,
             it is worth reporting: being wrong in public is the only real risk
             this project runs.
+          </p>
+          <p>
+            The source is on{" "}
+            <a
+              className="main link"
+              href={SOURCE_URL}
+              target="_blank"
+              rel="noreferrer"
+            >
+              GitHub
+            </a>
+            , which is where bugs and bad numbers should go. Updates are on{" "}
+            <a
+              className="main link"
+              href={X_URL}
+              target="_blank"
+              rel="noreferrer"
+            >
+              {X_HANDLE}
+            </a>
+            .
           </p>
         </div>
       </section>

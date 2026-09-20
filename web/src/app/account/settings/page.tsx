@@ -23,13 +23,14 @@ import {
   serializePrefs,
   withBlock,
 } from "@/lib/prefs";
+import { ISSUES_URL } from "@/lib/site";
 
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = { title: "Settings — tokn" };
 
 /** Where "contact support" points. */
-const SUPPORT_URL = "https://github.com/toknlabs";
+const SUPPORT_URL = ISSUES_URL;
 
 const MAX_NAME = 60;
 const MAX_BIO = 160;

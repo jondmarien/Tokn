@@ -413,6 +413,23 @@ export interface DayPoint {
   cost: number;
   tokens: number;
   requests: number;
+  /**
+   * The same day's tokens split by kind.
+   *
+   * The CLI has always uploaded this — every stored row carries the five
+   * counts separately — but `byDay` used to add them together and throw the
+   * breakdown away, which left every chart able to plot only money. On an
+   * agent workload cache is most of the volume, so a tokens line without the
+   * split hides the one thing worth seeing.
+   *
+   * Cache writes are combined here: the 5m/1h distinction changes the price,
+   * not the shape of the day, and it is already shown where it matters in the
+   * cost anatomy.
+   */
+  input: number;
+  output: number;
+  cacheWrite: number;
+  cacheRead: number;
 }
 
 export interface ModelPoint {
@@ -466,10 +483,18 @@ export async function userStats(
       cost: 0,
       tokens: 0,
       requests: 0,
+      input: 0,
+      output: 0,
+      cacheWrite: 0,
+      cacheRead: 0,
     };
     day.cost += row.costUsd;
     day.tokens += tokensOf(row);
     day.requests += row.requests;
+    day.input += row.input;
+    day.output += row.output;
+    day.cacheWrite += row.cacheWrite5m + row.cacheWrite1h;
+    day.cacheRead += row.cacheRead;
     days.set(row.day, day);
 
     const model =

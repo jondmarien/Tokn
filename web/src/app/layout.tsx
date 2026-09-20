@@ -2,11 +2,21 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Link from "next/link";
 import { currentUser } from "@/lib/auth";
+import {
+  ChartGlyph,
+  CogGlyph,
+  DocGlyph,
+  InfoGlyph,
+  LockGlyph,
+  PlugGlyph,
+} from "@/components/Glyphs";
+import { SocialIcon } from "@/components/SocialIcon";
 import { TopBar } from "@/components/TopBar";
 import { ThemePicker } from "@/components/ThemePicker";
 import { VersionChip } from "@/components/VersionChip";
 import { themeBootScript } from "@/components/theme";
 import { themeStylesheet } from "@/lib/themes";
+import { SOURCE_URL, X_HANDLE, X_URL } from "@/lib/site";
 import "./globals.css";
 
 /**
@@ -49,6 +59,10 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: TITLE,
     description: DESCRIPTION,
+    // Attributes the card to the project's account, so a shared link shows
+    // "from @trytokn" rather than a bare domain.
+    site: X_HANDLE,
+    creator: X_HANDLE,
   },
 };
 
@@ -83,16 +97,46 @@ export default async function RootLayout({
             <main>{children}</main>
 
             <footer className="footer">
-              <Link href="/stats">stats</Link>
-              <Link href="/about">about</Link>
-              <Link href="/link">connect</Link>
-              <Link href="/account/settings">settings</Link>
-              <Link href="/terms">terms</Link>
-              <Link href="/privacy">privacy</Link>
-              <span className="footer-chips">
+              <nav className="footer-links" aria-label="site">
+                <Link href="/stats">
+                  <ChartGlyph size={13} />
+                  stats
+                </Link>
+                <Link href="/about">
+                  <InfoGlyph size={13} />
+                  about
+                </Link>
+                <Link href="/link">
+                  <PlugGlyph size={13} />
+                  connect
+                </Link>
+                <Link href="/account/settings">
+                  <CogGlyph size={13} />
+                  settings
+                </Link>
+                <a href={SOURCE_URL} target="_blank" rel="noreferrer">
+                  <SocialIcon provider="github" size={13} />
+                  github
+                </a>
+                <a href={X_URL} target="_blank" rel="noreferrer">
+                  <SocialIcon provider="x" size={12} />x
+                </a>
+                <Link href="/terms">
+                  <DocGlyph size={13} />
+                  terms
+                </Link>
+                <Link href="/privacy">
+                  <LockGlyph size={13} />
+                  privacy
+                </Link>
+              </nav>
+
+              {/* Controls rather than destinations, so they sit under the row
+                  instead of competing with it. */}
+              <div className="footer-chips">
                 <ThemePicker />
                 <VersionChip />
-              </span>
+              </div>
             </footer>
           </div>
         </div>

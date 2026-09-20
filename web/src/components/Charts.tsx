@@ -136,3 +136,108 @@ export function ShareBars({
     </div>
   );
 }
+
+
+/* ------------------------------------------------------- stacked day bars */
+
+export interface DayStack {
+  day: string;
+  /** Widest band first; drawn bottom-up in this order. */
+  parts: { label: string; value: number }[];
+}
+
+/**
+ * Tokens per day, split by kind.
+ *
+ * Stacked rather than a single line, though it is worth being honest about
+ * what that buys: on a cache-heavy profile cache reads are ~98% of volume, so
+ * the other three bands are sub-pixel and the chart reads as one solid colour.
+ * The stack earns its place on the days and profiles where the mix is not
+ * lopsided — early days before a cache exists, or output-heavy work — and the
+ * hover text carries the split on every day regardless.
+ *
+ * Scaled to the tallest day rather than to a fixed ceiling, because token
+ * counts span orders of magnitude between people and a shared scale would
+ * flatten most profiles to nothing.
+ */
+export function StackedDays({
+  days,
+  format,
+  height = 150,
+}: {
+  days: DayStack[];
+  format: (value: number) => string;
+  height?: number;
+}) {
+  if (days.length < 2) return <p className="empty">not enough data yet</p>;
+
+  const W = 1000;
+  const max = Math.max(...days.map((d) => d.parts.reduce((n, p) => n + p.value, 0))) || 1;
+  // A gap only where there is room for one; at 90 days the bars are thinner
+  // than the gap would be, and the chart turns into a comb.
+  const slot = W / days.length;
+  const gap = slot > 6 ? Math.min(2, slot * 0.18) : 0;
+  const barWidth = Math.max(0.6, slot - gap);
+
+  const shades = [
+    "var(--main)",
+    "color-mix(in srgb, var(--main) 55%, var(--sub-alt))",
+    "color-mix(in srgb, var(--main) 25%, var(--sub-alt))",
+    "var(--sub-alt)",
+  ];
+
+  return (
+    <svg
+      viewBox={`0 0 ${W} ${height}`}
+      preserveAspectRatio="none"
+      style={{ width: "100%", height, display: "block" }}
+      role="img"
+      aria-label="tokens per day, by kind"
+    >
+      {days.map((day, index) => {
+        const total = day.parts.reduce((n, p) => n + p.value, 0);
+        let y = height;
+        // One string, not two children. React separates adjacent text nodes
+        // differently on the server than on the client, which shows up as a
+        // hydration mismatch rather than as anything visible.
+        const tip = [
+          `${niceDay(day.day)} · ${format(total)}`,
+          ...day.parts
+            .filter((part) => part.value > 0)
+            .map((part) => `${part.label} ${format(part.value)}`),
+        ].join("\n");
+        return (
+          <g key={day.day}>
+            <title>{tip}</title>
+            {day.parts.map((part, layer) => {
+              if (part.value <= 0) return null;
+              const h = (part.value / max) * height;
+              y -= h;
+              return (
+                <rect
+                  key={part.label}
+                  x={index * slot}
+                  y={y}
+                  width={barWidth}
+                  height={h}
+                  fill={shades[layer] ?? "var(--sub-alt)"}
+                />
+              );
+            })}
+            {/* A day with nothing still gets a mark, so gaps read as quiet
+                days rather than as missing data. */}
+            {total === 0 && (
+              <rect
+                x={index * slot}
+                y={height - 1}
+                width={barWidth}
+                height={1}
+                fill="var(--sub-alt)"
+              />
+            )}
+          </g>
+        );
+      })}
+    </svg>
+  );
+}

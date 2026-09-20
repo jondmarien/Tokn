@@ -82,6 +82,11 @@ interface Bucket {
   cost: number;
   tokens: number;
   requests: number;
+  /** Only filled for day buckets, which feed the per-day token chart. */
+  input?: number;
+  output?: number;
+  cacheWrite?: number;
+  cacheRead?: number;
 }
 
 interface UserAcc extends Bucket {
@@ -193,6 +198,10 @@ export async function siteStats(windowDays = 30): Promise<SiteStats> {
         cost: entry?.cost ?? 0,
         tokens: entry?.tokens ?? 0,
         requests: entry?.requests ?? 0,
+        input: entry?.input ?? 0,
+        output: entry?.output ?? 0,
+        cacheWrite: entry?.cacheWrite ?? 0,
+        cacheRead: entry?.cacheRead ?? 0,
       };
     }),
 
@@ -246,11 +255,18 @@ function add(
   cost: number,
   tokens: number,
   requests: number,
+  split?: { input: number; output: number; cacheWrite: number; cacheRead: number },
 ): void {
   const entry = map.get(key) ?? { cost: 0, tokens: 0, requests: 0 };
   entry.cost += cost;
   entry.tokens += tokens;
   entry.requests += requests;
+  if (split) {
+    entry.input = (entry.input ?? 0) + split.input;
+    entry.output = (entry.output ?? 0) + split.output;
+    entry.cacheWrite = (entry.cacheWrite ?? 0) + split.cacheWrite;
+    entry.cacheRead = (entry.cacheRead ?? 0) + split.cacheRead;
+  }
   map.set(key, entry);
 }
 

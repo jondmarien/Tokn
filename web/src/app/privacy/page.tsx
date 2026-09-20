@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { LegalPage, Section } from "@/components/LegalPage";
+import { ISSUES_URL } from "@/lib/site";
 
 export const metadata: Metadata = { title: "Privacy — tokn" };
 
@@ -77,8 +78,8 @@ export default function PrivacyPage() {
           wanted it.
         </p>
         <p>
-          Run <span className="kbd">tokn sync --dry-run</span> to print the exact
-          payload without sending it, or{" "}
+          Run <span className="kbd">tokn sync --dry-run</span> to print the
+          exact payload without sending it, or{" "}
           <span className="kbd">tokn scan</span> to see your numbers without an
           account at all.
         </p>
@@ -190,7 +191,7 @@ export default function PrivacyPage() {
         <p>
           Reach us through the{" "}
           <a
-            href="https://github.com/toknlabs"
+            href={ISSUES_URL}
             className="main link"
             rel="noreferrer"
             target="_blank"

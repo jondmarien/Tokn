@@ -113,6 +113,21 @@ export function render(data: ProfileData, width: number): string[] {
   push();
   push(label("tokens") + dim(`   ${compactNumber(stats.totals.tokens)} total`));
   push();
+
+  // Tokens per day, on the same 90-day window as the spend line above, so the
+  // two can be read against each other: a day that cost more without moving
+  // this line means the mix changed, not the volume.
+  if (recent.length > 1) {
+    push(sparkline(recent.map((d) => d.tokens), Math.min(inner, 72)));
+    const peak = recent.reduce((top, d) => (d.tokens > top.tokens ? d : top), recent[0]!);
+    push(
+      dim(
+        `${recent[0]!.day} → today · busiest ${peak.day} at ${compactNumber(peak.tokens)}`,
+      ),
+    );
+    push();
+  }
+
   const tokenRows: [string, number][] = [
     ["cache read", stats.tokens.cacheRead],
     ["cache write", stats.tokens.cacheWrite],
