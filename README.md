@@ -1,5 +1,3 @@
-<img src="brand/github/org-avatar-500.png" width="72" alt="">
-
 # tokn
 
 Track what AI coding actually costs you.
@@ -54,7 +52,6 @@ between a useful number and a wrong one.
 | `cli/` | the command line tool — scanning, pricing, sync, terminal dashboard |
 | `web/` | the site: leaderboard, profiles, friends, stats |
 | `backend/` | data access and service layer, on Appwrite |
-| `brand/` | logo, icons and the script that generates them |
 
 Each has its own README covering how it works and why.
 
