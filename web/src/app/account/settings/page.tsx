@@ -327,6 +327,25 @@ export default async function SettingsPage({
           </button>
         </div>
       </form>
+      <SettingsGroup title="your data" note="everything this account holds, in a file">
+        <p className="micro" style={{ lineHeight: 1.7, marginBottom: "1rem" }}>
+          the csv is your usage rows, one per day, tool and model — the numbers behind
+          every figure on your profile, so you can check our arithmetic against your
+          own. the json adds your profile, connected machines and passkey labels.
+          neither contains your password or any device token.
+        </p>
+        <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+          {/* Plain links, not fetch: the browser already knows how to save a
+              file it is handed, and Content-Disposition names it. */}
+          <a className="btn" href="/api/account/export?format=csv" download>
+            download csv
+          </a>
+          <a className="btn" href="/api/account/export?format=json" download>
+            download json
+          </a>
+        </div>
+      </SettingsGroup>
+
       <SettingsGroup title="danger" note="this cannot be undone">
         <DeleteAccount handle={user.handle} />
       </SettingsGroup>
