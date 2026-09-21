@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { ProfileView } from "@/components/ProfileView";
 import { Terminal } from "@/components/Terminal";
@@ -11,6 +12,7 @@ import {
   listDevices,
   revokeDevice,
 } from "@/lib/auth";
+import { SETUP_SEEN_COOKIE } from "@/lib/onboarding";
 import { rankOf, syncInfo } from "@/lib/stats";
 
 export const dynamic = "force-dynamic";
@@ -38,6 +40,17 @@ export default async function AccountPage() {
   if (!user) redirect("/login?next=/account");
 
   const devices = await listDevices(user.id);
+
+  // Accounts that predate the welcome flow never saw it, and neither did
+  // anyone who signed up and wandered off before linking. Both look the same
+  // from here — no machine connected — and both still have the whole setup
+  // ahead of them, so offer it once. The flow marks the browser as it opens,
+  // which is what stops this firing again for someone who skips.
+  const jar = await cookies();
+  if (devices.length === 0 && jar.get(SETUP_SEEN_COOKIE)?.value !== "1") {
+    redirect("/welcome");
+  }
+
   const sync = await syncInfo(user.id);
 
   return (

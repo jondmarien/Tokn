@@ -4,7 +4,7 @@
   "description": "Track your AI coding usage across every CLI you use, and publish it to the leaderboard.",
   "type": "module",
   "bin": {
-    "tokn": "./dist/index.js"
+    "tokn": "dist/index.js"
   },
   "files": [
     "dist",

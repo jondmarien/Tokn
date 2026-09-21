@@ -133,7 +133,7 @@ export function AccountMenu({ user }: { user: AccountMenuUser }) {
             onPick={() => setOpen(false)}
             icon={<ChartGlyph />}
           >
-            user stats
+            your usage
           </MenuLink>
           <MenuLink
             href="/account/friends"

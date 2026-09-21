@@ -2082,3 +2082,88 @@ table.t tbody tr[data-me="true"] .idle {
   color: var(--sub);
   overflow-x: auto;
 }
+
+/* ------------------------------------------------------ welcome flow */
+
+/* The step rail. Deliberately not clickable: it reports where you are, and
+   letting someone jump to "connect" before installing would show them a code
+   for a command they do not have yet. */
+.onboard-steps {
+  display: flex;
+  gap: 1.5rem;
+  list-style: none;
+  padding: 0;
+  margin: 0 0 2rem;
+  font-size: 0.75rem;
+  color: var(--sub);
+}
+.onboard-steps li {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+.onboard-steps .dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--sub-alt);
+  transition: background 0.2s ease;
+}
+.onboard-steps li[data-state="now"] { color: var(--text); }
+.onboard-steps li[data-state="now"] .dot { background: var(--main); }
+.onboard-steps li[data-state="done"] .dot { background: var(--sub); }
+
+.onboard-art {
+  /* Not --sub-alt: the shapes inside are drawn in --sub-alt, and matching the
+     panel to them made every window body invisible against its own
+     background. The page colour gives them something to sit on. */
+  background: var(--bg);
+  border: 1px solid var(--sub-alt);
+  border-radius: 12px;
+  padding: 1rem;
+  margin-bottom: 2rem;
+  overflow: hidden;
+}
+
+.onboard-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 1.75rem;
+  flex-wrap: wrap;
+}
+
+.onboard-code {
+  display: flex;
+  align-items: baseline;
+  gap: 0.9rem;
+  margin-top: 1.25rem;
+  padding: 0.9rem 1.1rem;
+  background: var(--sub-alt);
+  border-radius: 10px;
+}
+.onboard-code strong {
+  font-family: var(--font-mono), monospace;
+  font-size: 1.35rem;
+  letter-spacing: 0.12em;
+  color: var(--main);
+}
+
+.onboard-waiting {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin-top: 1rem;
+}
+.onboard-waiting .spin {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1.5px solid var(--sub-alt);
+  border-top-color: var(--main);
+  animation: onboard-spin 0.8s linear infinite;
+}
+@keyframes onboard-spin { to { transform: rotate(360deg) } }
+@media (prefers-reduced-motion: reduce) {
+  .onboard-waiting .spin { animation: none; border-top-color: var(--sub); }
+}

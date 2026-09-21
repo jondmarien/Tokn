@@ -91,7 +91,7 @@ export function AuthForm({
 
       // The layout reads the session cookie server-side, so the whole tree has
       // to re-render; a plain push would keep showing "Sign in".
-      router.push(next);
+      router.push(mode === "signup" ? "/welcome" : next);
       router.refresh();
     } catch {
       setError("could not reach the server");

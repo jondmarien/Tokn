@@ -13,17 +13,21 @@ import type { ModelPrice } from "./pricing.js";
 /**
  * Where the CLI talks to.
  *
- * `PRODUCTION_HOST` is the real origin. `DEFAULT_HOST` is what a fresh install
- * actually uses, and it stays local until the site is deployed there — pointing
- * it at a domain that resolves to nothing would break every new install for the
- * sake of being early.
+ * `PRODUCTION_HOST` is the real origin, and a fresh install now uses it. It
+ * deliberately stayed on localhost until the domain actually resolved and
+ * served the app: a default pointing at dead DNS breaks every new install for
+ * the sake of being early, and the failure looks like a broken CLI rather than
+ * a missing deployment.
  *
- * Deploy day is one line: make DEFAULT_HOST equal PRODUCTION_HOST and ship a
- * version. Anyone already linked keeps the host stored in their config until
- * they re-link, and `TOKN_HOST` overrides both.
+ * Two escape hatches remain. Anyone already linked keeps the host stored in
+ * their config until they re-link, so shipping this does not move existing
+ * installs off whatever they were talking to. And `TOKN_HOST` overrides both,
+ * which is how local development retargets a CLI built from this source:
+ *
+ *   TOKN_HOST=http://localhost:3000 tokn link
  */
 export const PRODUCTION_HOST = "https://toknhq.com";
-export const DEFAULT_HOST = "http://localhost:3000";
+export const DEFAULT_HOST = PRODUCTION_HOST;
 
 export interface Config {
   host: string;
