@@ -2281,3 +2281,159 @@ table.t tbody tr[data-me="true"] .idle {
 .plan-verdict[data-good] {
   color: var(--main);
 }
+
+/* The savings panel. Sized like the figure it is, then the breakdown reads as
+   a list of actions rather than a table of numbers. */
+.save-total {
+  color: var(--main);
+}
+
+.save-list {
+  list-style: none;
+  padding: 0;
+  margin: 1.25rem 0 0;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.save-list li {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.15rem 1rem;
+  align-items: baseline;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--sub-alt);
+}
+
+.save-list li:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.save-what {
+  color: var(--text);
+  font-size: 0.9375rem;
+}
+
+.save-amount {
+  color: var(--main);
+  font-size: 0.9375rem;
+  text-align: right;
+}
+
+/* Spans both columns so a long explanation wraps under the row rather than
+   squeezing the amount off the end of the line. */
+.save-why {
+  grid-column: 1 / -1;
+  color: var(--sub);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+
+/* -------------------------------------------------------------- model mix */
+
+/*
+ * Ring and legend side by side, stacking on a phone. The ring is capped rather
+ * than fluid: a donut that grows with the viewport ends up enormous on a wide
+ * screen and says nothing more than it did at 200px.
+ */
+.mix {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2.5rem 3.5rem;
+  margin-top: 1.5rem;
+}
+
+.mix-ring {
+  position: relative;
+  flex: 0 0 auto;
+  width: 13rem;
+  height: 13rem;
+}
+
+.mix-ring svg {
+  width: 100%;
+  height: 100%;
+  /* Dash offsets are measured clockwise from 3 o'clock; this puts the first
+     segment at the top, where a reader starts. */
+  transform: rotate(-90deg);
+}
+
+.mix-centre {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.2rem;
+  pointer-events: none;
+}
+
+.mix-pct {
+  font-size: 1.5rem;
+  line-height: 1;
+  letter-spacing: -0.035em;
+  font-variant-numeric: tabular-nums;
+}
+
+.mix-lead {
+  font-size: 0.6875rem;
+  color: var(--sub);
+}
+
+.mix-legend {
+  flex: 1 1 16rem;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mix-legend li {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.45rem 0;
+  font-size: 0.8125rem;
+}
+
+.mix-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.mix-name {
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mix-share {
+  margin-left: auto;
+  color: var(--sub);
+  font-variant-numeric: tabular-nums;
+}
+
+.mix-foot {
+  margin: 1.75rem 0 1.5rem;
+  max-width: 64ch;
+}
+
+@media (max-width: 560px) {
+  .mix {
+    gap: 1.75rem;
+  }
+
+  .mix-ring {
+    width: 11rem;
+    height: 11rem;
+  }
+}

@@ -32,6 +32,7 @@ import {
 } from "@/lib/prefs";
 import { userStats, type UserStats } from "@/lib/stats";
 import { CostAnatomy } from "@/components/CostAnatomy";
+import { Savings } from "@/components/Savings";
 import {
   anatomyFor,
   burnRate,
@@ -221,6 +222,12 @@ export async function ProfileView({
               own={own}
             />
           ))}
+          <Savings
+            anatomy={anatomy}
+            benchmark={benchmark}
+            whatIf={whatIf}
+            own={own}
+          />
           <CostAnatomy
             anatomy={anatomy}
             benchmark={benchmark}
