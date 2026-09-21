@@ -2167,3 +2167,50 @@ table.t tbody tr[data-me="true"] .idle {
 @media (prefers-reduced-motion: reduce) {
   .onboard-waiting .spin { animation: none; border-top-color: var(--sub); }
 }
+
+/* The identity step: avatar and its style picks on the left, the two fields
+   on the right. Collapses to a single column early — the fields need most of
+   a line to be typable, and a cramped two-column form is worse than a tall
+   one. */
+.onboard-identity {
+  display: flex;
+  gap: 1.5rem;
+  margin-top: 1.5rem;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.onboard-avatar {
+  display: grid;
+  gap: 0.6rem;
+  justify-items: center;
+}
+
+.onboard-avatar-picks {
+  display: flex;
+  gap: 0.25rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.onboard-avatar-picks .btn {
+  font-size: 0.6875rem;
+  padding: 0.2rem 0.45rem;
+}
+
+.onboard-avatar-picks .btn[data-on] {
+  color: var(--main);
+  background: var(--sub-alt);
+}
+
+.onboard-avatar-picks .btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.onboard-fields {
+  display: grid;
+  gap: 0.9rem;
+  flex: 1 1 16rem;
+  min-width: 0;
+}

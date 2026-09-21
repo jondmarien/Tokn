@@ -4,47 +4,76 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { browserSupportsWebAuthn, startRegistration } from "@simplewebauthn/browser";
+import { Avatar } from "@/components/Avatar";
 import { SETUP_SEEN_COOKIE, SETUP_SEEN_MAX_AGE } from "@/lib/onboarding";
+import { AVATAR_STYLES, type AvatarStyle } from "@/lib/prefs";
 import { Terminal } from "@/components/Terminal";
-import { ArtInstall, ArtLink, ArtSecure, ArtDone } from "@/components/OnboardingArt";
+import {
+  ArtWelcome,
+  ArtProfile,
+  ArtInstall,
+  ArtLink,
+  ArtSecure,
+  ArtDone,
+} from "@/components/OnboardingArt";
 
 /**
  * What a new account sees once, immediately after signing up.
  *
- * Four steps, in the order the work actually happens: install the CLI, link
- * this account to a machine, optionally add a passkey, then look at the thing
- * you came for.
+ * The order follows what the reader can actually do: say who they are, install
+ * the CLI, link a machine, optionally add a passkey, then look at the thing
+ * they came for. Identity comes first because it needs nothing but this page —
+ * everything after it needs a terminal.
  *
- * Two decisions worth keeping:
+ * Three decisions worth keeping:
  *
- * The link step does not have a "next" button. It polls, and advances by
- * itself the moment the machine connects. A button there would be asking the
- * reader to tell us something we already know, and it is the one step where
- * they have to leave the page — so when they come back, the page should
- * already have moved on.
+ * The link step has no "next" button. It polls, and advances by itself the
+ * moment the machine connects. A button there would ask the reader to tell us
+ * something we already know, and it is the one step where they must leave the
+ * page — so when they come back, it should already have moved on.
  *
- * Every step can be skipped and the whole flow can be left. Someone who wants
- * to look around before installing anything is not doing it wrong, and a
- * tutorial that traps them is worse than no tutorial.
+ * Skipping the CLI skips *the CLI*, not the flow. Install and connect are one
+ * unit of work that needs a terminal, and someone who is not sitting at one
+ * still has a passkey worth adding. Leaving entirely stays possible, but it is
+ * a separate and quieter control.
+ *
+ * Every step can be left. A tutorial that traps someone is worse than none.
  */
 
-type Step = "install" | "link" | "secure" | "done";
+type Step = "welcome" | "profile" | "install" | "link" | "secure" | "done";
 
+/**
+ * The progress dots. "welcome" is deliberately absent: it is a greeting, not a
+ * task, and numbering it would tell the reader they have six things to do when
+ * they have five.
+ */
 const STEPS: { key: Step; label: string }[] = [
+  { key: "profile", label: "profile" },
   { key: "install", label: "install" },
   { key: "link", label: "connect" },
   { key: "secure", label: "secure" },
   { key: "done", label: "done" },
 ];
 
+const MAX_NAME = 60;
+
 export function Onboarding({
-  handle,
+  handle: initialHandle,
+  initialName,
+  initialAvatar,
+  avatarUrl,
+  handleChangesLeft,
   initialCode,
   initialExpiry,
   alreadyLinked,
   hasPasskey,
 }: {
   handle: string;
+  initialName: string | null;
+  initialAvatar: AvatarStyle;
+  avatarUrl: string | null;
+  /** How many handle changes the account has left, for an honest warning. */
+  handleChangesLeft: number;
   initialCode: string;
   initialExpiry: string;
   /** True when a machine connected before they reached this page. */
@@ -52,7 +81,7 @@ export function Onboarding({
   hasPasskey: boolean;
 }) {
   const router = useRouter();
-  const [step, setStep] = useState<Step>(alreadyLinked ? "secure" : "install");
+  const [step, setStep] = useState<Step>("welcome");
   const [code, setCode] = useState(initialCode);
   const [expiresAt, setExpiresAt] = useState(initialExpiry);
   const [linked, setLinked] = useState(alreadyLinked);
@@ -69,6 +98,39 @@ export function Onboarding({
   useEffect(() => {
     document.cookie = `${SETUP_SEEN_COOKIE}=1; path=/; max-age=${SETUP_SEEN_MAX_AGE}; samesite=lax`;
   }, []);
+
+  /* ----------------------------------------------------------- identity */
+
+  const [handle, setHandle] = useState(initialHandle);
+  const [name, setName] = useState(initialName ?? "");
+  const [avatar, setAvatar] = useState<AvatarStyle>(initialAvatar);
+
+  /** Where the flow goes once identity is settled. */
+  const afterProfile = useCallback(
+    () => setStep(linked ? "secure" : "install"),
+    [linked],
+  );
+
+  async function saveIdentity() {
+    setBusy(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/onboarding/profile", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ handle, name, avatar }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error ?? "that did not save");
+      setHandle(result.handle);
+      router.refresh();
+      afterProfile();
+    } catch (problem) {
+      setError((problem as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
 
   /* ----------------------------------------------------------- linking */
 
@@ -197,21 +259,133 @@ export function Onboarding({
 
   return (
     <div style={{ maxWidth: "34rem", margin: "2.5rem auto 0", width: "100%" }}>
-      <ol className="onboard-steps" aria-label="setup progress">
-        {STEPS.map((s, i) => (
-          <li key={s.key} data-state={i < index ? "done" : i === index ? "now" : "todo"}>
-            <span className="dot" aria-hidden="true" />
-            {s.label}
-          </li>
-        ))}
-      </ol>
+      {step !== "welcome" && (
+        <ol className="onboard-steps" aria-label="setup progress">
+          {STEPS.map((s, i) => (
+            <li key={s.key} data-state={i < index ? "done" : i === index ? "now" : "todo"}>
+              <span className="dot" aria-hidden="true" />
+              {s.label}
+            </li>
+          ))}
+        </ol>
+      )}
 
       <div className="onboard-art">
+        {step === "welcome" && <ArtWelcome />}
+        {step === "profile" && <ArtProfile />}
         {step === "install" && <ArtInstall />}
         {step === "link" && <ArtLink />}
         {step === "secure" && <ArtSecure />}
         {step === "done" && <ArtDone />}
       </div>
+
+      {step === "welcome" && (
+        <section>
+          <h1 className="title">welcome to tokn</h1>
+          <p className="lede" style={{ marginTop: "0.5rem", fontSize: "0.9rem" }}>
+            it reads what your AI coding tools already write to disk and turns it
+            into a picture of what you actually spend. setting up takes about two
+            minutes.
+          </p>
+          <div className="onboard-actions">
+            <button type="button" className="btn primary" onClick={() => setStep("profile")}>
+              get started
+            </button>
+            <Link href="/account" className="micro link">
+              I will do this later
+            </Link>
+          </div>
+        </section>
+      )}
+
+      {step === "profile" && (
+        <section>
+          <h1 className="title">who are you</h1>
+          <p className="lede" style={{ marginTop: "0.5rem", fontSize: "0.9rem" }}>
+            your handle is how people find you. the display name is what appears
+            beside it. both can be changed later.
+          </p>
+
+          <div className="onboard-identity">
+            <div className="onboard-avatar">
+              <Avatar handle={handle || initialHandle} size={72} style={avatar} url={avatarUrl} />
+              <div className="onboard-avatar-picks" role="group" aria-label="avatar style">
+                {AVATAR_STYLES.map((option) => {
+                  // "github" has nothing to draw without an avatar from GitHub.
+                  const unavailable = option === "github" && !avatarUrl;
+                  return (
+                    <button
+                      key={option}
+                      type="button"
+                      className="btn bare"
+                      aria-pressed={option === avatar}
+                      data-on={option === avatar ? "" : undefined}
+                      disabled={unavailable}
+                      title={unavailable ? "no github avatar on this account" : undefined}
+                      onClick={() => setAvatar(option)}
+                    >
+                      {option}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="onboard-fields">
+              <div className="field">
+                <label htmlFor="onboard-handle">handle</label>
+                <input
+                  id="onboard-handle"
+                  className="input"
+                  value={handle}
+                  spellCheck={false}
+                  autoComplete="off"
+                  onChange={(event) => setHandle(event.target.value)}
+                />
+              </div>
+
+              <div className="field">
+                <label htmlFor="onboard-name">display name</label>
+                <input
+                  id="onboard-name"
+                  className="input"
+                  value={name}
+                  maxLength={MAX_NAME}
+                  placeholder="optional"
+                  onChange={(event) => setName(event.target.value)}
+                />
+              </div>
+            </div>
+          </div>
+
+          {handle !== initialHandle && (
+            <p className="micro" style={{ marginTop: "0.75rem" }}>
+              changing your handle uses one of your {handleChangesLeft} remaining
+              changes.
+            </p>
+          )}
+
+          {error && (
+            <p className="micro" style={{ marginTop: "0.75rem", color: "var(--error)" }}>
+              {error}
+            </p>
+          )}
+
+          <div className="onboard-actions">
+            <button
+              type="button"
+              className="btn primary"
+              onClick={saveIdentity}
+              disabled={busy || !handle.trim()}
+            >
+              {busy ? "…" : "continue"}
+            </button>
+            <button type="button" className="btn" onClick={afterProfile} disabled={busy}>
+              keep what I have
+            </button>
+          </div>
+        </section>
+      )}
 
       {step === "install" && (
         <section>
@@ -231,9 +405,12 @@ export function Onboarding({
             <button type="button" className="btn primary" onClick={() => setStep("link")}>
               next
             </button>
-            <Link href="/account" className="micro link">
-              skip setup
-            </Link>
+            {/* Skips the CLI, not the flow: install and connect are one unit of
+                work that needs a terminal, and a passkey is still worth having
+                to someone who is not sitting at one. */}
+            <button type="button" className="btn" onClick={() => setStep("secure")}>
+              not at a terminal
+            </button>
           </div>
         </section>
       )}
@@ -254,7 +431,7 @@ export function Onboarding({
             <strong>{code}</strong>
             <span className="micro">
               {remaining === null
-                ? " "
+                ? " "
                 : remaining > 0
                   ? `expires in ${clock(remaining)}`
                   : "expired — fetching a new one"}
@@ -295,9 +472,16 @@ export function Onboarding({
           </p>
 
           {passkeyAdded ? (
-            <p className="micro" style={{ marginTop: "1.25rem" }}>
-              a passkey is already on this account.
-            </p>
+            <>
+              <p className="micro" style={{ marginTop: "1.25rem" }}>
+                a passkey is already on this account.
+              </p>
+              <div className="onboard-actions">
+                <button type="button" className="btn primary" onClick={() => setStep("done")}>
+                  continue
+                </button>
+              </div>
+            </>
           ) : canPasskey ? (
             <>
               {error && (

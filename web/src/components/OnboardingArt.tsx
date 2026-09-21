@@ -68,6 +68,43 @@ const STYLE = `
   @keyframes a-pulse { 0%,100% { opacity: .25; r: 16 } 50% { opacity: 0; r: 30 } }
   .art .a-pulse { animation: a-pulse 2.2s ease-out infinite; }
 
+  /* --- the mark drawing itself, for the welcome screen ------------------ */
+  /* Plays once and holds rather than looping. This is the first thing a new
+     account sees and it is on screen for as long as they take to read a
+     sentence; a mark that redraws itself every three seconds would be asking
+     for attention it does not need. */
+  @keyframes a-draw { from { stroke-dashoffset: 30 } to { stroke-dashoffset: 0 } }
+  .art .a-mark {
+    fill: none;
+    stroke: var(--main);
+    stroke-width: 3.5;
+    stroke-linecap: round;
+    stroke-dasharray: 30;
+    animation: a-draw 1s cubic-bezier(.2,.8,.3,1) both;
+  }
+  .art .a-mark-late { animation-delay: .14s; }
+
+  @keyframes a-core { from { opacity: 0 } to { opacity: 1 } }
+  .art .a-core { fill: var(--main); animation: a-core .45s ease-out .8s both; }
+
+  @keyframes a-halo-out { 0% { opacity: .45; r: 10 } 100% { opacity: 0; r: 74 } }
+  .art .a-halo {
+    fill: none;
+    stroke: var(--main);
+    stroke-width: 2;
+    animation: a-halo-out 1.5s ease-out .85s both;
+  }
+
+  /* --- a profile filling in --------------------------------------------- */
+  @keyframes a-fill {
+    0%       { clip-path: inset(0 100% 0 0); opacity: 1 }
+    35%, 85% { clip-path: inset(0 0 0 0);    opacity: 1 }
+    100%     { clip-path: inset(0 0 0 0);    opacity: 0 }
+  }
+  .art .a-fill { animation: a-fill 3s ease-in-out infinite; }
+  .art .a-fill-late { animation-delay: .45s; }
+  .art .a-ring-soft { fill: none; stroke: var(--main); stroke-width: 1.5; opacity: .25; }
+
   /* --- a padlock opening ------------------------------------------------ */
   /* Modelled on the iOS/macOS unlock: the shackle does not simply slide up, it
      springs past its resting height and settles back. That overshoot is the
@@ -104,7 +141,8 @@ const STYLE = `
 
   @media (prefers-reduced-motion: reduce) {
     .art .a-caret, .art .a-typed, .art .a-packet, .art .a-pulse, .art .a-bar,
-    .art .a-shackle, .art .a-unlock-ring {
+    .art .a-shackle, .art .a-unlock-ring, .art .a-fill,
+    .art .a-mark, .art .a-core, .art .a-halo {
       animation: none;
     }
     .art .a-caret { transform: translateX(0); opacity: 1; }
@@ -113,6 +151,10 @@ const STYLE = `
     .art .a-bar { clip-path: inset(0 0 0 0); }
     .art .a-shackle { transform: translateY(-14px); }
     .art .a-unlock-ring { opacity: 0; }
+    .art .a-mark { stroke-dashoffset: 0; }
+    .art .a-core { opacity: 1; }
+    .art .a-halo { opacity: 0; }
+    .art .a-fill { clip-path: inset(0 0 0 0); opacity: 1; }
   }
 `;
 
@@ -142,7 +184,54 @@ function Window({ children, title }: { children: React.ReactNode; title: string 
   );
 }
 
-/** Step 1 — the install command being typed. */
+/**
+ * Step 0 — the mark drawing itself in.
+ *
+ * The bracket paths are the site's own icon, scaled up by a static `transform`
+ * attribute rather than a CSS transform. An attribute transform is resolved
+ * against the element's own user space, so it sidesteps the transform-box trap
+ * described at the top of this file entirely.
+ */
+export function ArtWelcome() {
+  return (
+    <Frame>
+      <circle className="a-halo" cx="160" cy="88" r="10" />
+      <g transform="translate(160 88) scale(3.4) translate(-16 -16)">
+        <path className="a-mark" d="M 13 7 H 9 a 2 2 0 0 0 -2 2 v 14 a 2 2 0 0 0 2 2 h 4" />
+        <path
+          className="a-mark a-mark-late"
+          d="M 19 7 h 4 a 2 2 0 0 1 2 2 v 14 a 2 2 0 0 1 -2 2 h -4"
+        />
+        <rect className="a-core" x="13.5" y="13.5" width="5" height="5" rx="1.5" />
+      </g>
+    </Frame>
+  );
+}
+
+/** Step 1 — an identity being filled in. */
+export function ArtProfile() {
+  return (
+    <Frame>
+      <rect className="a-bg" x="24" y="26" width="272" height="128" rx="10" />
+
+      {/* the avatar: a silhouette cut out of an accent disc */}
+      <circle className="a-ring-soft" cx="86" cy="90" r="34" />
+      <circle className="a-accent" cx="86" cy="90" r="26" />
+      <circle cx="86" cy="82" r="8.5" fill="var(--bg)" />
+      <path d="M 71 107 a 15 13 0 0 1 30 0" fill="var(--bg)" />
+
+      {/* handle, then display name, each filling in from the left */}
+      <g className="a-fill">
+        <rect className="a-accent" x="134" y="73" width="112" height="11" rx="5.5" />
+      </g>
+      <g className="a-fill a-fill-late">
+        <rect className="a-dim" x="134" y="96" width="74" height="9" rx="4.5" opacity="0.55" />
+      </g>
+    </Frame>
+  );
+}
+
+/** Step 2 — the install command being typed. */
 export function ArtInstall() {
   return (
     <Frame>

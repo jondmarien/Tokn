@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { Onboarding } from "@/components/Onboarding";
-import { currentUser, issueLinkCode } from "@/lib/auth";
+import { HANDLE_CHANGE_LIMIT, currentUser, issueLinkCode } from "@/lib/auth";
 import { listDevices, listPasskeys } from "@/lib/backend";
+import { parsePrefs } from "@/lib/prefs";
 
 export const dynamic = "force-dynamic";
 
@@ -29,6 +30,10 @@ export default async function WelcomePage() {
   return (
     <Onboarding
       handle={user.handle}
+      initialName={user.name}
+      initialAvatar={parsePrefs(user.prefs).avatar}
+      avatarUrl={user.avatarUrl ?? null}
+      handleChangesLeft={user.handleChangesLeft ?? HANDLE_CHANGE_LIMIT}
       initialCode={code}
       initialExpiry={expiresAt}
       alreadyLinked={devices.length > 0}
