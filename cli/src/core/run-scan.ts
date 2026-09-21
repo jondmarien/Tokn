@@ -42,11 +42,17 @@ export async function runScan(options: RunScanOptions = {}): Promise<ScanResult>
     since: options.since,
     only: options.only,
     onProgress: (done, total) => {
-      if (done % 5 === 0 || done === total) {
-        spinner?.update(
-          `Reading sessions… ${fullNumber(done)}/${fullNumber(total)} ${pluralize(total, "file")}`,
-        );
-      }
+      // No modulo throttle any more. The spinner drops a redraw whose line is
+      // unchanged, so reporting every file costs nothing and lets the bar's
+      // partial-block edge move on files that do not shift the percentage.
+      const totalText = fullNumber(total);
+      spinner?.progress(
+        "Scanning",
+        total > 0 ? done / total : 0,
+        // Right-aligned against the total so the bar does not shuffle sideways
+        // as the count grows a digit.
+        `${fullNumber(done).padStart(totalText.length)}/${totalText} ${pluralize(total, "file")}`,
+      );
     },
   });
 

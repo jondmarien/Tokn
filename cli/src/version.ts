@@ -1,2 +1,2 @@
 /** Kept in step with package.json by `npm version`. */
-export const VERSION = "0.1.0";
+export const VERSION = "0.1.1";
