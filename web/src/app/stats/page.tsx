@@ -23,6 +23,16 @@ import { leaderboard } from "@/lib/stats";
  * scale — a stat with no period attached is not a stat.
  */
 
+/**
+ * Dynamic, and unavoidably so: the root layout calls `currentUser()`, which
+ * reads cookies, and that makes every route under it render per request. A
+ * page-level `revalidate` here is silently ignored — the route never reaches
+ * the prerender manifest.
+ *
+ * The expensive part is cached one level down instead. `siteStats` memoises
+ * its own result, so the full scan of `usage_daily` runs once per window
+ * rather than once per visitor.
+ */
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = { title: "stats — tokn" };

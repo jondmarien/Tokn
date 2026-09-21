@@ -1,4 +1,5 @@
 import "server-only";
+import { unstable_cache } from "next/cache";
 import {
   listAllProfiles,
   listAllUsage,
@@ -94,7 +95,32 @@ interface UserAcc extends Bucket {
   lastSync: string;
 }
 
-export async function siteStats(windowDays = 30): Promise<SiteStats> {
+/**
+ * The site-wide figures, cached across requests.
+ *
+ * This is the most expensive read in the app: it scans every row of
+ * `usage_daily` to build series by day, model and tool, none of which the
+ * `user_totals` rollup carries. At one billed read per (day, tool, model)
+ * bucket, running it per visitor is what exhausted a 1.75M monthly read quota.
+ *
+ * The cache lives on the data rather than the page because page-level
+ * `revalidate` cannot work here: the root layout calls `currentUser()`, which
+ * reads cookies, so every route under it is dynamic and no page is ever
+ * prerendered. `unstable_cache` is unaffected by that — it memoises the result
+ * itself, so one scan serves every visitor for the whole window.
+ *
+ * Nothing here is per-user, so there is no key beyond the window length.
+ */
+/** Five minutes. Site-wide charts do not move perceptibly faster than this. */
+const SITE_STATS_TTL_SECONDS = 300;
+
+export const siteStats = unstable_cache(
+  computeSiteStats,
+  ["site-stats"],
+  { revalidate: SITE_STATS_TTL_SECONDS },
+);
+
+async function computeSiteStats(windowDays = 30): Promise<SiteStats> {
   const [usage, profiles] = await Promise.all([
     listAllUsage(),
     listAllProfiles(),

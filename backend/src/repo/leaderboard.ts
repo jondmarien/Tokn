@@ -15,6 +15,9 @@ import { findProfileById, listedFor } from "./profiles.ts";
  * which stays the source of truth.
  */
 
+/** Rollup rows per round trip. One row per user, so this is generous. */
+const TOTALS_PAGE = 200;
+
 export type Window = "all" | "30d" | "7d";
 export type Metric = "cost" | "tokens";
 
@@ -113,6 +116,38 @@ export async function leaderboard(
     rank: index + 1,
     value: (row as unknown as Record<string, number>)[field] ?? 0,
   }));
+}
+
+/**
+ * Every rollup row, one per user who has ever synced.
+ *
+ * This exists so the site-wide board can be built without touching
+ * `usage_daily`. That table holds a row per (day, tool, model) bucket, so
+ * scanning it to rank users cost one read per bucket per page view — which is
+ * what exhausted a 1.75M monthly read quota on a few hundred page views. Here
+ * the cost is one read per user.
+ *
+ * Paged rather than limited: the board seeds from profiles and fills from
+ * these, so a truncated list would silently show people as having no usage.
+ */
+export async function listAllUserTotals(): Promise<Totals[]> {
+  const out: Totals[] = [];
+  let cursor: string | undefined;
+
+  for (;;) {
+    const queries = [Query.limit(TOTALS_PAGE), Query.orderAsc("$id")];
+    if (cursor) queries.push(Query.cursorAfter(cursor));
+
+    const page = await db().listDocuments(DB_ID, "user_totals", queries);
+    const docs = page.documents as unknown as Totals[];
+    for (const doc of docs) out.push(doc);
+
+    if (docs.length < TOTALS_PAGE) break;
+    cursor = docs[docs.length - 1]?.$id;
+    if (!cursor) break;
+  }
+
+  return out;
 }
 
 /**

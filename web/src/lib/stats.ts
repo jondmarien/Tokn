@@ -2,10 +2,12 @@ import "server-only";
 import {
   listAllProfiles,
   listAllUsage,
+  listAllUserTotals,
   listDevices,
   listUsage,
   listedFor,
   type Profile,
+  type Totals,
   type UsageDoc,
 } from "./backend";
 
@@ -159,12 +161,65 @@ export interface BoardOptions {
   offset?: number;
 }
 
+/**
+ * A board built from the `user_totals` rollup instead of the raw rows.
+ *
+ * `usage_daily` holds one row per (day, tool, model) bucket, so ranking users
+ * by scanning it costs one read per bucket on every page view. At a few
+ * thousand buckets that is a whole monthly read quota inside a few hundred
+ * views, which is how this site went down. The rollup is one row per user and
+ * is already refreshed on every sync, so the same board costs one read each.
+ *
+ * Only all-time is served this way. The rollup carries `costUsd7d` and
+ * `costUsd30d` but no windowed token or request counts, and nothing that can
+ * reconstruct an earlier board, so every other period still reads the rows.
+ * Approximating them would be worse than being slow: a board is a ranking, and
+ * a ranking that is quietly wrong is not worth having.
+ */
+async function boardFromTotals(
+  metric: Metric,
+  { activeOnly, offset, limit }: { activeOnly: boolean; offset: number; limit: number },
+): Promise<LeaderboardEntry[]> {
+  const [totals, profiles] = await Promise.all([listAllUserTotals(), listAllProfiles()]);
+  const byUser = new Map<string, Totals>(totals.map((row) => [row.userId, row]));
+
+  const entries: LeaderboardEntry[] = [];
+  for (const profile of profiles) {
+    // Same rule as the scanning path: everyone who signed up gets a row, and
+    // private or opted-out accounts are not ranked.
+    if (!listedFor(profile)) continue;
+    const row = byUser.get(profile.$id);
+
+    entries.push({
+      rank: 0,
+      userId: profile.$id,
+      handle: profile.handle,
+      name: profile.name ?? null,
+      joined: profile.createdAt,
+      billing: profile.billing,
+      cost: row?.costUsd ?? 0,
+      tokens: row?.tokens ?? 0,
+      requests: row?.requests ?? 0,
+      days: row?.activeDays ?? 0,
+      topModel: row?.topModel ?? null,
+      lastDay: row?.lastDay ?? null,
+    });
+  }
+
+  return rankAndSlice(entries, metric, { activeOnly, offset, limit });
+}
+
 export async function leaderboard(
   period: Period,
   metric: Metric,
   limit = 100,
   { until, activeOnly = false, offset = 0 }: BoardOptions = {},
 ): Promise<LeaderboardEntry[]> {
+  // The default view, and so nearly all traffic, crawlers included.
+  if (period === "all" && !until) {
+    return boardFromTotals(metric, { activeOnly, offset, limit });
+  }
+
   const { usage, profiles } = await snapshot();
   const start = periodStart(period, until);
 
@@ -256,6 +311,15 @@ export async function leaderboard(
     });
   }
 
+  return rankAndSlice(entries, metric, { activeOnly, offset, limit });
+}
+
+/** The ordering the board has always used, shared by both read paths. */
+function rankAndSlice(
+  entries: LeaderboardEntry[],
+  metric: Metric,
+  { activeOnly, offset, limit }: { activeOnly: boolean; offset: number; limit: number },
+): LeaderboardEntry[] {
   return entries
     .filter((entry) => !activeOnly || entry[metric] > 0)
     .sort(
