@@ -2265,3 +2265,19 @@ table.t tbody tr[data-me="true"] .idle {
   font-size: 0.875rem;
   color: var(--main);
 }
+
+/* The subscription verdict. Sized like a figure rather than a note, because it
+   answers the question the section exists to ask. Accent when the plan is
+   earning its fee, plain when it is not — red would read as an error when it is
+   only information, and the number is the judgement either way. */
+.plan-verdict {
+  margin-top: 0.9rem;
+  font-size: 1.25rem;
+  line-height: 1.2;
+  color: var(--sub);
+  letter-spacing: -0.01em;
+}
+
+.plan-verdict[data-good] {
+  color: var(--main);
+}

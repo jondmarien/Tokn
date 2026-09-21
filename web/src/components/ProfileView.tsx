@@ -185,7 +185,7 @@ export async function ProfileView({
           <Stat
             key={key}
             k={STAT_LABELS[key]}
-            {...statValue(key, stats, hasUsage)}
+            {...statValue(key, stats, hasUsage, plans)}
           />
         ))}
       </section>
@@ -206,7 +206,7 @@ export async function ProfileView({
               listed their plans but not synced yet still has something to
               show, and hiding it would be the one section that needs no data
               waiting on data. */}
-          {plans.length > 0 && <Plans plans={plans} stats={stats} />}
+          {plans.length > 0 && <Plans plans={plans} stats={stats} own={own} />}
         </>
       ) : (
         <>
@@ -218,6 +218,7 @@ export async function ProfileView({
               recent={recent}
               prefs={prefs}
               plans={plans}
+              own={own}
             />
           ))}
           <CostAnatomy
@@ -241,12 +242,14 @@ function Block({
   stats,
   recent,
   plans,
+  own,
 }: {
   block: BlockKey;
   stats: UserStats;
   recent: UserStats["byDay"];
   prefs: ProfilePrefs;
   plans: Plan[];
+  own?: boolean;
 }) {
   switch (block) {
     case "activity":
@@ -347,7 +350,7 @@ function Block({
       );
 
     case "plans":
-      return plans.length > 0 ? <Plans plans={plans} stats={stats} /> : null;
+      return plans.length > 0 ? <Plans plans={plans} stats={stats} own={own} /> : null;
 
     case "summary":
       return <Summary stats={stats} />;
@@ -402,7 +405,7 @@ function spendSince(stats: UserStats, days: number): number {
   );
 }
 
-function Plans({ plans, stats }: { plans: Plan[]; stats: UserStats }) {
+function Plans({ plans, stats, own }: { plans: Plan[]; stats: UserStats; own?: boolean }) {
   const monthly = monthlyTotal(plans);
   const priced = hasPricedPlan(plans);
 
@@ -422,7 +425,7 @@ function Plans({ plans, stats }: { plans: Plan[]; stats: UserStats }) {
 
   return (
     <section>
-      <p className="block-label">what they pay for</p>
+      <p className="block-label">what {own ? "you pay" : "they pay"} for</p>
       <p className="block-value">
         {priced
           ? `${money(monthly, 2)}/mo`
@@ -444,14 +447,27 @@ function Plans({ plans, stats }: { plans: Plan[]; stats: UserStats }) {
         ))}
       </ul>
 
+      {/* The verdict, not a footnote. This is the one figure here that answers
+          a decision someone actually has to make each month, and it spent its
+          first life as the smallest, dimmest line in the section. The
+          arithmetic below it stays quiet; the answer does not. */}
       {flat > 0 && measured > 0 && (
-        <p className="micro" style={{ marginTop: "0.9rem", lineHeight: 1.7 }}>
-          {money(flat, 2)} a month in subscriptions against {money(measured, 2)}{" "}
-          of usage in the last 30 days at API rates
-          {ratio >= 1
-            ? `, so they carried ${ratio.toFixed(1)}× their own cost.`
-            : `, which is ${percent(measured, flat)} of what they cost.`}
-        </p>
+        <>
+          <p className="plan-verdict" data-good={ratio >= 1 ? "" : undefined}>
+            {ratio >= 1
+              ? `${ratio.toFixed(1)}× what ${own ? "you pay" : "they pay"}`
+              : `${percent(measured, flat)} of what ${own ? "you pay" : "they pay"}`}
+          </p>
+          <p className="micro" style={{ marginTop: "0.35rem", lineHeight: 1.7 }}>
+            {money(flat, 2)} a month in subscriptions against {money(measured, 2)}{" "}
+            of usage in the last 30 days at API rates
+            {ratio >= 1
+              ? "."
+              : own
+                ? " — a cheaper plan may cover it."
+                : "."}
+          </p>
+        </>
       )}
 
       <p
@@ -478,6 +494,7 @@ function statValue(
   key: StatKey,
   stats: UserStats,
   hasUsage: boolean,
+  plans: Plan[],
 ): { v: string; idle?: boolean } {
   const dash = { v: "—", idle: true };
   if (!hasUsage && key !== "streak" && key !== "longestStreak") return dash;
@@ -509,6 +526,15 @@ function statValue(
       };
     case "biggestDay":
       return stats.best ? { v: money(stats.best.cost, 2) } : dash;
+    case "planRoi": {
+      // A dash rather than a zero when there is nothing to compare against: an
+      // account with no priced subscription has no return, which is a
+      // different statement from a return of nothing.
+      const flat = subscriptionMonthly(plans);
+      const measured = spendSince(stats, 30);
+      if (flat <= 0 || measured <= 0) return dash;
+      return { v: `${(measured / flat).toFixed(1)}×` };
+    }
   }
 }
 

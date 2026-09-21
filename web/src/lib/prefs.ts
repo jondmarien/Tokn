@@ -81,6 +81,7 @@ export const STATS = [
   "perDay",
   "perRequest",
   "biggestDay",
+  "planRoi",
 ] as const;
 
 export type StatKey = (typeof STATS)[number];
@@ -97,6 +98,7 @@ export const STAT_LABELS: Record<StatKey, string> = {
   perDay: "per active day",
   perRequest: "per request",
   biggestDay: "biggest day",
+  planRoi: "plan return",
 };
 
 /** The headline row is four wide; more would wrap and stop being a headline. */
