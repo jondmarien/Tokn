@@ -111,8 +111,19 @@ interface UserAcc extends Bucket {
  *
  * Nothing here is per-user, so there is no key beyond the window length.
  */
-/** Five minutes. Site-wide charts do not move perceptibly faster than this. */
-const SITE_STATS_TTL_SECONDS = 300;
+/**
+ * An hour.
+ *
+ * This was five minutes, which is wrong by an order of magnitude. Each miss is
+ * a full scan of `usage_daily`, so under steady traffic five minutes is ~8,600
+ * scans a month; at a few thousand buckets that alone is several million
+ * billed reads. An hour is 720 scans, and nothing on a site-wide chart moves
+ * perceptibly inside an hour.
+ *
+ * This number is a read budget, not a freshness preference. Raising it is
+ * cheap; lowering it multiplies the most expensive query in the app.
+ */
+const SITE_STATS_TTL_SECONDS = 3600;
 
 export const siteStats = unstable_cache(
   computeSiteStats,
@@ -120,11 +131,29 @@ export const siteStats = unstable_cache(
   { revalidate: SITE_STATS_TTL_SECONDS },
 );
 
+/**
+ * Rows past which a scan is no longer an acceptable way to build this page.
+ *
+ * Appwrite bills a read per document, so this scan's cost is exactly its row
+ * count. The first time it went wrong there was nothing to see: the query kept
+ * working and simply got more expensive every week until the quota died mid
+ * month. A line in the log is not a fix, but it turns a silent drain into
+ * something that shows up before the bill does.
+ */
+const SCAN_ROW_WARNING = 25_000;
+
 async function computeSiteStats(windowDays = 30): Promise<SiteStats> {
   const [usage, profiles] = await Promise.all([
     listAllUsage(),
     listAllProfiles(),
   ]);
+
+  if (usage.length > SCAN_ROW_WARNING) {
+    console.warn(
+      `[site-stats] scanned ${usage.length} usage rows — that is ${usage.length} billed reads ` +
+        `per cache miss. Past this size the page needs a per-day rollup rather than a scan.`,
+    );
+  }
 
   const start = shiftDay(today(), -(windowDays - 1));
   const weekAgo = new Date(Date.now() - 7 * 86_400_000).toISOString();
