@@ -10,7 +10,6 @@ import { AVATAR_STYLES, type AvatarStyle } from "@/lib/prefs";
 import { Terminal } from "@/components/Terminal";
 import {
   ArtWelcome,
-  ArtProfile,
   ArtInstall,
   ArtLink,
   ArtSecure,
@@ -272,7 +271,9 @@ export function Onboarding({
 
       <div className="onboard-art">
         {step === "welcome" && <ArtWelcome />}
-        {step === "profile" && <ArtProfile />}
+        {step === "profile" && (
+          <ProfilePreview handle={handle} name={name} avatar={avatar} avatarUrl={avatarUrl} />
+        )}
         {step === "install" && <ArtInstall />}
         {step === "link" && <ArtLink />}
         {step === "secure" && <ArtSecure />}
@@ -542,6 +543,49 @@ export function Onboarding({
           </div>
         </section>
       )}
+    </div>
+  );
+}
+
+/**
+ * A live preview of the profile being edited.
+ *
+ * This is the real `Avatar` component and the real strings, not a drawing of
+ * them. The other steps illustrate something the reader cannot see yet; this
+ * one shows the actual thing they are making, so it should *be* the thing. It
+ * also avoids reimplementing the avatar: the default style derives a gradient
+ * from a hash of the handle, and a hand-drawn copy would drift from it the
+ * first time that changes.
+ *
+ * Both strings fall back to a dimmed placeholder rather than collapsing, so the
+ * card keeps its shape while the fields are still empty.
+ */
+function ProfilePreview({
+  handle,
+  name,
+  avatar,
+  avatarUrl,
+}: {
+  handle: string;
+  name: string;
+  avatar: AvatarStyle;
+  avatarUrl: string | null;
+}) {
+  const shownHandle = handle.trim();
+  const shownName = name.trim();
+  return (
+    <div className="onboard-preview">
+      <div className="onboard-preview-card">
+        {/* An empty handle would seed the generated gradient off "", so the
+            placeholder is fed to the avatar too and the mark stays stable. */}
+        <Avatar handle={shownHandle || "you"} size={72} style={avatar} url={avatarUrl} />
+        <div className="onboard-preview-text">
+          <span className="onboard-preview-name" data-empty={shownName ? undefined : ""}>
+            {shownName || "your display name"}
+          </span>
+          <span className="onboard-preview-handle">@{shownHandle || "your-handle"}</span>
+        </div>
+      </div>
     </div>
   );
 }

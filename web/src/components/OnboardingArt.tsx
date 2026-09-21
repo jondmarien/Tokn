@@ -95,16 +95,6 @@ const STYLE = `
     animation: a-halo-out 1.5s ease-out .85s both;
   }
 
-  /* --- a profile filling in --------------------------------------------- */
-  @keyframes a-fill {
-    0%       { clip-path: inset(0 100% 0 0); opacity: 1 }
-    35%, 85% { clip-path: inset(0 0 0 0);    opacity: 1 }
-    100%     { clip-path: inset(0 0 0 0);    opacity: 0 }
-  }
-  .art .a-fill { animation: a-fill 3s ease-in-out infinite; }
-  .art .a-fill-late { animation-delay: .45s; }
-  .art .a-ring-soft { fill: none; stroke: var(--main); stroke-width: 1.5; opacity: .25; }
-
   /* --- a padlock opening ------------------------------------------------ */
   /* Modelled on the iOS/macOS unlock: the shackle does not simply slide up, it
      springs past its resting height and settles back. That overshoot is the
@@ -141,7 +131,7 @@ const STYLE = `
 
   @media (prefers-reduced-motion: reduce) {
     .art .a-caret, .art .a-typed, .art .a-packet, .art .a-pulse, .art .a-bar,
-    .art .a-shackle, .art .a-unlock-ring, .art .a-fill,
+    .art .a-shackle, .art .a-unlock-ring,
     .art .a-mark, .art .a-core, .art .a-halo {
       animation: none;
     }
@@ -154,7 +144,6 @@ const STYLE = `
     .art .a-mark { stroke-dashoffset: 0; }
     .art .a-core { opacity: 1; }
     .art .a-halo { opacity: 0; }
-    .art .a-fill { clip-path: inset(0 0 0 0); opacity: 1; }
   }
 `;
 
@@ -208,30 +197,7 @@ export function ArtWelcome() {
   );
 }
 
-/** Step 1 — an identity being filled in. */
-export function ArtProfile() {
-  return (
-    <Frame>
-      <rect className="a-bg" x="24" y="26" width="272" height="128" rx="10" />
-
-      {/* the avatar: a silhouette cut out of an accent disc */}
-      <circle className="a-ring-soft" cx="86" cy="90" r="34" />
-      <circle className="a-accent" cx="86" cy="90" r="26" />
-      <circle cx="86" cy="82" r="8.5" fill="var(--bg)" />
-      <path d="M 71 107 a 15 13 0 0 1 30 0" fill="var(--bg)" />
-
-      {/* handle, then display name, each filling in from the left */}
-      <g className="a-fill">
-        <rect className="a-accent" x="134" y="73" width="112" height="11" rx="5.5" />
-      </g>
-      <g className="a-fill a-fill-late">
-        <rect className="a-dim" x="134" y="96" width="74" height="9" rx="4.5" opacity="0.55" />
-      </g>
-    </Frame>
-  );
-}
-
-/** Step 2 — the install command being typed. */
+/** Step 1 — the install command being typed. */
 export function ArtInstall() {
   return (
     <Frame>

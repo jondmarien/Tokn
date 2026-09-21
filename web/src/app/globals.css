@@ -2214,3 +2214,54 @@ table.t tbody tr[data-me="true"] .idle {
   flex: 1 1 16rem;
   min-width: 0;
 }
+
+/* The identity step previews the profile rather than illustrating one, so it
+   uses the real Avatar component and the real strings. Matching the other
+   steps' aspect ratio keeps the panel from resizing as the flow advances. */
+.onboard-preview {
+  aspect-ratio: 320 / 180;
+  display: grid;
+  place-items: center;
+}
+
+.onboard-preview-card {
+  display: flex;
+  align-items: center;
+  gap: 1.15rem;
+  background: var(--sub-alt);
+  border-radius: 12px;
+  padding: 1.5rem 2rem;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.onboard-preview-text {
+  display: grid;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+/* Both lines truncate: a long display name should shorten the card's text,
+   never push the avatar out of the panel. */
+.onboard-preview-name,
+.onboard-preview-handle {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.onboard-preview-name {
+  font-size: 1.125rem;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.onboard-preview-name[data-empty] {
+  color: var(--sub);
+  font-weight: 400;
+}
+
+.onboard-preview-handle {
+  font-size: 0.875rem;
+  color: var(--main);
+}
