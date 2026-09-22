@@ -26,6 +26,28 @@ export interface UsageEvent {
    * have no rate for.
    */
   reportedCostUsd?: number;
+
+  /* ------------------------------------------------------- local only */
+
+  /**
+   * Where the work happened, and which session it belonged to.
+   *
+   * Every one of these is on the wire in a Claude Code transcript already, and
+   * the parser used to drop all three. They power `tokn projects`, `tokn
+   * session` and `tokn when`.
+   *
+   * **None of it is ever uploaded.** `aggregate()` collapses events into
+   * (day, tool, model, fast) buckets before anything is sent, so a project
+   * path physically cannot reach the server through the sync path. That
+   * matters beyond tidiness: an absolute path names the client you are
+   * working for, and that is not ours to publish.
+   */
+  /** Absolute working directory, as the tool recorded it. */
+  project?: string;
+  /** Git branch at the time of the request. */
+  branch?: string;
+  /** The tool's own session id, for grouping requests into a sitting. */
+  session?: string;
 }
 
 export interface SourceStats {

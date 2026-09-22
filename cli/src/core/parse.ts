@@ -45,6 +45,10 @@ interface RawRecord {
   type?: string;
   timestamp?: string;
   requestId?: string;
+  /** Present on every usage-carrying record Claude Code writes. */
+  cwd?: string;
+  gitBranch?: string;
+  sessionId?: string;
   message?: {
     id?: string;
     model?: string;
@@ -160,6 +164,11 @@ async function parseOneFile(
       timestamp,
       fast: usage.speed === "fast",
       tokens: splitTokens(usage),
+      // Kept for the local views and stripped by `aggregate` before any
+      // upload. Undefined for tools that record none of them.
+      project: record.cwd,
+      branch: record.gitBranch,
+      session: record.sessionId,
     });
   });
 

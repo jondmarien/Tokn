@@ -14,6 +14,15 @@ export interface ScanResult {
   aggregation: Aggregation;
   sources: SourceResult[];
   elapsedMs: number;
+  /**
+   * The raw events, only when `keepEvents` was asked for.
+   *
+   * Absent by default and deliberately so: the merge below drops each source's
+   * copy as soon as it is merged, because a heavy machine holds 37k events and
+   * keeping two references to them was measurable. Views that need per-event
+   * detail — project, branch, session — opt in and pay for it.
+   */
+  events?: UsageEvent[];
 }
 
 export interface RunScanOptions {
@@ -23,6 +32,8 @@ export interface RunScanOptions {
   only?: string[];
   /** Suppress the spinner — used by `--json` so stderr stays quiet. */
   quiet?: boolean;
+  /** Return the events instead of freeing them after aggregation. */
+  keepEvents?: boolean;
 }
 
 export class NoSessionsError extends Error {
@@ -78,7 +89,12 @@ export async function runScan(options: RunScanOptions = {}): Promise<ScanResult>
   const aggregation = aggregate(events, options.pricing);
   spinner?.clearAndStop();
 
-  return { aggregation, sources: results, elapsedMs: Date.now() - started };
+  return {
+    aggregation,
+    sources: results,
+    elapsedMs: Date.now() - started,
+    ...(options.keepEvents ? { events } : {}),
+  };
 }
 
 /** Display name for a tool id, falling back to the id itself. */

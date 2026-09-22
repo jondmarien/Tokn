@@ -9,6 +9,7 @@ import { setupCommand } from "./commands/setup.js";
 import { sourcesCommand } from "./commands/sources.js";
 import { statusCommand } from "./commands/status.js";
 import { syncCommand } from "./commands/sync.js";
+import { projectsCommand } from "./commands/projects.js";
 import { unlinkCommand } from "./commands/unlink.js";
 import { ApiError } from "./core/api.js";
 import { bold, dim, red, sym } from "./ui/ansi.js";
@@ -56,6 +57,10 @@ const COMMANDS: Record<string, Command> = {
   autosync: {
     run: autosyncCommand,
     summary: "Publish automatically in the background",
+  },
+  projects: {
+    run: projectsCommand,
+    summary: "Show spend per project, read locally",
   },
   sources: {
     run: sourcesCommand,
