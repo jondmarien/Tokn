@@ -11,6 +11,7 @@ import { statusCommand } from "./commands/status.js";
 import { syncCommand } from "./commands/sync.js";
 import { projectsCommand } from "./commands/projects.js";
 import { unlinkCommand } from "./commands/unlink.js";
+import { watchCommand } from "./commands/watch.js";
 import { ApiError } from "./core/api.js";
 import { bold, dim, red, sym } from "./ui/ansi.js";
 import { PromptCancelledError } from "./ui/prompt.js";
@@ -57,6 +58,10 @@ const COMMANDS: Record<string, Command> = {
   autosync: {
     run: autosyncCommand,
     summary: "Publish automatically in the background",
+  },
+  watch: {
+    run: watchCommand,
+    summary: "Live cost meter for the session you are in",
   },
   projects: {
     run: projectsCommand,

@@ -106,6 +106,90 @@ export async function parseSessions(
   return { events, stats };
 }
 
+/** Why a candidate line produced no event. Counted by the caller. */
+export type LineSkip =
+  | "unparseable"
+  | "not-assistant"
+  | "no-usage"
+  | "synthetic"
+  | "duplicate"
+  | "before-since";
+
+export interface LineResult {
+  event?: UsageEvent;
+  skip?: LineSkip;
+  /** False when the record carried neither a message id nor a request id. */
+  keyed?: boolean;
+}
+
+/**
+ * Turn one candidate line into an event, or explain why it is not one.
+ *
+ * Extracted from the scan loop so `tokn watch` can follow a live transcript
+ * without a second copy of these rules. There are six of them and every one is
+ * load-bearing — the synthetic-model skip, the message/request dedupe key, the
+ * fallback to file mtime when a record has no timestamp — and two
+ * implementations would have disagreed about somebody's bill within a month.
+ *
+ * `seen` belongs to the caller: a full scan dedupes across every file at once,
+ * while a tail dedupes across the life of the process.
+ */
+export function parseUsageLine(
+  line: string,
+  context: { source: SessionFile["source"]; mtimeMs: number },
+  seen: Set<string>,
+  since?: string,
+): LineResult {
+  let record: RawRecord;
+  try {
+    record = JSON.parse(line) as RawRecord;
+  } catch {
+    // A torn final line while a session is being written.
+    return { skip: "unparseable" };
+  }
+
+  if (record.type !== "assistant") return { skip: "not-assistant" };
+
+  const message = record.message;
+  const usage = message?.usage;
+  if (!message || !usage) return { skip: "no-usage" };
+
+  const model = message.model;
+  if (!model) return { skip: "no-usage" };
+  if (model === SYNTHETIC_MODEL) return { skip: "synthetic" };
+
+  const messageId = message.id;
+  const requestId = record.requestId;
+  let keyed = false;
+  if (messageId || requestId) {
+    keyed = true;
+    const key = `${messageId ?? ""}:${requestId ?? ""}`;
+    if (seen.has(key)) return { skip: "duplicate", keyed };
+    seen.add(key);
+  }
+
+  const timestamp = record.timestamp ?? new Date(context.mtimeMs).toISOString();
+  const day = localDay(timestamp);
+  if (since && day < since) return { skip: "before-since", keyed };
+
+  return {
+    keyed,
+    event: {
+      tool: context.source,
+      model,
+      day,
+      timestamp,
+      fast: usage.speed === "fast",
+      tokens: splitTokens(usage),
+      // Kept for the local views and stripped by `aggregate` before any
+      // upload. Undefined for tools that record none of them.
+      project: record.cwd,
+      branch: record.gitBranch,
+      session: record.sessionId,
+    },
+  };
+}
+
 async function parseOneFile(
   file: SessionFile,
   events: UsageEvent[],
@@ -117,59 +201,16 @@ async function parseOneFile(
   // keeps roughly 90% of these files from ever becoming JavaScript strings.
   // Only lines that could carry usage reach this callback.
   const scan = await scanLines(file.path, USAGE_MARKER, (line) => {
-    let record: RawRecord;
-    try {
-      record = JSON.parse(line) as RawRecord;
-    } catch {
-      return; // A torn final line while a session is being written.
+    const result = parseUsageLine(line, file, seen, options.since);
+
+    if (result.skip === "synthetic") stats.syntheticSkipped++;
+    // Anything that reached the dedupe stage was a real usage record.
+    if (result.event || result.skip === "duplicate" || result.skip === "before-since") {
+      stats.usageRecords++;
+      if (result.keyed === false) stats.unkeyedRecords++;
     }
-
-    if (record.type !== "assistant") return;
-
-    const message = record.message;
-    const usage = message?.usage;
-    if (!message || !usage) return;
-
-    const model = message.model;
-    if (!model) return;
-
-    if (model === SYNTHETIC_MODEL) {
-      stats.syntheticSkipped++;
-      return;
-    }
-
-    stats.usageRecords++;
-
-    const messageId = message.id;
-    const requestId = record.requestId;
-    if (messageId || requestId) {
-      const key = `${messageId ?? ""}:${requestId ?? ""}`;
-      if (seen.has(key)) {
-        stats.duplicatesSkipped++;
-        return;
-      }
-      seen.add(key);
-    } else {
-      stats.unkeyedRecords++;
-    }
-
-    const timestamp = record.timestamp ?? new Date(file.mtimeMs).toISOString();
-    const day = localDay(timestamp);
-    if (options.since && day < options.since) return;
-
-    events.push({
-      tool: file.source,
-      model,
-      day,
-      timestamp,
-      fast: usage.speed === "fast",
-      tokens: splitTokens(usage),
-      // Kept for the local views and stripped by `aggregate` before any
-      // upload. Undefined for tools that record none of them.
-      project: record.cwd,
-      branch: record.gitBranch,
-      session: record.sessionId,
-    });
+    if (result.skip === "duplicate") stats.duplicatesSkipped++;
+    if (result.event) events.push(result.event);
   });
 
   // `linesRead` still counts every line in the file, decoded or not, so the
@@ -177,14 +218,6 @@ async function parseOneFile(
   stats.linesRead += scan.linesRead;
 }
 
-/**
- * Split a usage block into the buckets we price separately.
- *
- * `cache_creation` carries the 5m/1h breakdown. Older client versions omit it,
- * leaving only the combined `cache_creation_input_tokens`; we attribute that to
- * the 5-minute bucket so an unknown split is priced at the lower rate rather
- * than inflating the total.
- */
 function splitTokens(usage: NonNullable<NonNullable<RawRecord["message"]>["usage"]>): TokenCounts {
   const tokens = emptyTokens();
   tokens.input = num(usage.input_tokens);
