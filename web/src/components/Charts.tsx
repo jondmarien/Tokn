@@ -103,10 +103,20 @@ export function AreaChart({
 /** Proportional split as labelled hairline bars. */
 export function ShareBars({
   rows,
+  total: scale,
 }: {
   rows: { label: string; value: number; display: string }[];
+  /**
+   * What the bars are measured against, when that is not the rows given.
+   *
+   * A paged list has to pass the whole set's total. Scaling each page to its
+   * own rows would draw the smallest model on the last page at full width,
+   * which reads as the largest — the bars would say the opposite of the
+   * numbers printed beside them.
+   */
+  total?: number;
 }) {
-  const total = rows.reduce((sum, row) => sum + row.value, 0);
+  const total = scale ?? rows.reduce((sum, row) => sum + row.value, 0);
   if (total <= 0) return <p className="empty">no data yet</p>;
 
   return (

@@ -143,11 +143,68 @@ export async function upsertUsage(userId: string, rows: SyncRow[]): Promise<numb
     written += chunk.length;
   }
 
+  // Dropped after the write, not before: clearing first leaves a window
+
+  // where a concurrent read repopulates the memo with pre-write rows and
+
+  // the sync appears not to have happened.
+
+  clearUsageCache(userId);
+
   return written;
 }
 
 /** Every usage row for a user, paged through in full. */
+/**
+ * One user's rows, memoised briefly.
+ *
+ * A profile render asks for the same rows three times: `userStats` for the
+ * charts, `anatomyFor` for the cost split, and `whatIf` for the model
+ * comparison. Each was a separate paged read of the same documents, so a
+ * profile with 142 rows billed 426 reads to draw one page.
+ *
+ * The window only has to outlive a single render, which is milliseconds. It is
+ * deliberately shorter than the pricing memo next door: a sync writes rows and
+ * then refreshes totals, and a profile opened immediately afterwards should
+ * not be looking at a cached copy from before the write.
+ *
+ * The promise is cached rather than its result, so three concurrent callers
+ * share one in-flight read instead of starting three.
+ */
+const USAGE_TTL_MS = 3_000;
+const usageCache = new Map<string, { at: number; rows: Promise<UsageDoc[]> }>();
+
 export async function listUsage(
+  userId: string,
+  options: { since?: string } = {},
+): Promise<UsageDoc[]> {
+  const key = `${userId}:${options.since ?? ""}`;
+  const hit = usageCache.get(key);
+  if (hit && Date.now() - hit.at < USAGE_TTL_MS) return hit.rows;
+
+  const rows = readUsage(userId, options);
+  usageCache.set(key, { at: Date.now(), rows });
+  // A rejected read must not be served to the next caller as a cached failure.
+  rows.catch(() => usageCache.delete(key));
+
+  // Bounded: one entry per user per window, cleared as entries go stale.
+  if (usageCache.size > 200) {
+    const cutoff = Date.now() - USAGE_TTL_MS;
+    for (const [k, v] of usageCache) if (v.at < cutoff) usageCache.delete(k);
+  }
+
+  return rows;
+}
+
+/** Drop a user's memo, so a write is visible to the next read. */
+export function clearUsageCache(userId?: string): void {
+  if (!userId) return usageCache.clear();
+  for (const key of usageCache.keys()) {
+    if (key.startsWith(`${userId}:`)) usageCache.delete(key);
+  }
+}
+
+async function readUsage(
   userId: string,
   options: { since?: string } = {},
 ): Promise<UsageDoc[]> {

@@ -2109,9 +2109,15 @@ table.t tbody tr[data-me="true"] .idle {
   background: var(--sub-alt);
   transition: background 0.2s ease;
 }
-.onboard-steps li[data-state="now"] { color: var(--text); }
-.onboard-steps li[data-state="now"] .dot { background: var(--main); }
-.onboard-steps li[data-state="done"] .dot { background: var(--sub); }
+.onboard-steps li[data-state="now"] {
+  color: var(--text);
+}
+.onboard-steps li[data-state="now"] .dot {
+  background: var(--main);
+}
+.onboard-steps li[data-state="done"] .dot {
+  background: var(--sub);
+}
 
 .onboard-art {
   /* Not --sub-alt: the shapes inside are drawn in --sub-alt, and matching the
@@ -2163,9 +2169,16 @@ table.t tbody tr[data-me="true"] .idle {
   border-top-color: var(--main);
   animation: onboard-spin 0.8s linear infinite;
 }
-@keyframes onboard-spin { to { transform: rotate(360deg) } }
+@keyframes onboard-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
 @media (prefers-reduced-motion: reduce) {
-  .onboard-waiting .spin { animation: none; border-top-color: var(--sub); }
+  .onboard-waiting .spin {
+    animation: none;
+    border-top-color: var(--sub);
+  }
 }
 
 /* The identity step: avatar and its style picks on the left, the two fields
@@ -2384,7 +2397,10 @@ table.t tbody tr[data-me="true"] .idle {
 }
 
 .mix-legend {
+  /* Capped: left to grow it strands the percentages against the far edge of a
+     1000px page, where they stop reading as a pair with their label. */
   flex: 1 1 16rem;
+  max-width: 22rem;
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -2396,10 +2412,96 @@ table.t tbody tr[data-me="true"] .idle {
 
 .mix-legend li {
   display: flex;
+}
+
+/* A real button, so hover, tap and Tab all reach it. */
+.mix-row {
+  flex: 1;
+  display: flex;
   align-items: center;
   gap: 0.7rem;
+  width: 100%;
   padding: 0.45rem 0;
+  border: 0;
+  background: none;
+  font: inherit;
   font-size: 0.8125rem;
+  text-align: left;
+  cursor: pointer;
+  transition: opacity var(--t-fast) var(--ease);
+}
+
+.mix-arc {
+  cursor: pointer;
+  transition:
+    opacity var(--t-fast) var(--ease),
+    stroke-width var(--t-fast) var(--ease);
+  /* Only the painted arc is hit-testable, which is what makes a 0.2% slice
+     hard to hit and a 57% one easy — the right way round. */
+}
+
+/* Dim everything except the slice being reported. */
+.mix-ring[data-dimmed="true"] .mix-arc:not([data-on="true"]) {
+  opacity: 0.4;
+}
+
+/*
+ * The reported arc stands proud. Opacity alone cannot do this job: a slice
+ * low on the ramp is dark to begin with, so leaving it at full strength while
+ * the others fade still reads as "everything is dim". Width is independent of
+ * shade, so it marks the sixth slice as clearly as the first.
+ */
+.mix-ring[data-dimmed="true"] .mix-arc[data-on="true"] {
+  stroke-width: 5.4;
+}
+
+.mix-legend:hover .mix-row:not([data-on="true"]),
+.mix-legend:focus-within .mix-row:not([data-on="true"]) {
+  opacity: 0.45;
+}
+
+.mix-row[data-on="true"] .mix-name {
+  color: var(--main);
+}
+
+.mix-row:focus-visible {
+  outline: 2px solid var(--main);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+/*
+ * The reported model. Always populated — the largest one when nothing is
+ * hovered — so crossing the chart never pushes the table down the page.
+ */
+.mix-detail {
+  margin-top: 1.75rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.15rem 0.5rem;
+  font-size: 0.8125rem;
+  color: var(--sub);
+  font-variant-numeric: tabular-nums;
+  min-height: 1.4em;
+}
+
+.mix-detail-name {
+  color: var(--text);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mix-arc,
+  .mix-row {
+    transition: none;
+  }
+}
+
+/* Without hover there is nothing to reveal, so the arcs are not controls. */
+@media (hover: none) {
+  .mix-arc {
+    cursor: default;
+  }
 }
 
 .mix-dot {
@@ -2423,7 +2525,7 @@ table.t tbody tr[data-me="true"] .idle {
 }
 
 .mix-foot {
-  margin: 1.75rem 0 1.5rem;
+  margin: 1rem 0 1.5rem;
   max-width: 64ch;
 }
 
@@ -2436,4 +2538,30 @@ table.t tbody tr[data-me="true"] .idle {
     width: 11rem;
     height: 11rem;
   }
+}
+
+/* Paging controls under a long share-bar list. Quiet by default: the list is
+   the content, and arrows that shout would compete with the bars. */
+.bars-pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 1.1rem;
+}
+
+.bars-pager-buttons {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.bars-pager-buttons .btn {
+  padding: 0.15rem 0.6rem;
+  font-size: 0.95rem;
+  line-height: 1.4;
+}
+
+.bars-pager-buttons .btn:disabled {
+  opacity: 0.25;
+  cursor: default;
 }

@@ -34,6 +34,8 @@ export interface ModelSlice {
   cost: number;
   tokens: number;
   requests: number;
+  /** How many people used it, which is a different story from what it cost. */
+  users: number;
 }
 
 export interface Highlight {
@@ -114,22 +116,21 @@ interface UserAcc extends Bucket {
 /**
  * An hour.
  *
- * This was five minutes, which is wrong by an order of magnitude. Each miss is
- * a full scan of `usage_daily`, so under steady traffic five minutes is ~8,600
- * scans a month; at a few thousand buckets that alone is several million
- * billed reads. An hour is 720 scans, and nothing on a site-wide chart moves
- * perceptibly inside an hour.
+ * Six hours, arrived at by arithmetic rather than taste. Each miss is a full
+ * scan of `usage_daily`, and a month holds 2.59M seconds, so the monthly cost
+ * is (2,592,000 / ttl) x rows. At 3,000 rows: five minutes is 26M reads, an
+ * hour is 2.2M, and six hours is 360k. Only the last one fits inside the
+ * plan's budget, and nothing on a site-wide chart moves perceptibly in six
+ * hours anyway.
  *
  * This number is a read budget, not a freshness preference. Raising it is
  * cheap; lowering it multiplies the most expensive query in the app.
  */
-const SITE_STATS_TTL_SECONDS = 3600;
+const SITE_STATS_TTL_SECONDS = 21_600;
 
-export const siteStats = unstable_cache(
-  computeSiteStats,
-  ["site-stats"],
-  { revalidate: SITE_STATS_TTL_SECONDS },
-);
+export const siteStats = unstable_cache(computeSiteStats, ["site-stats"], {
+  revalidate: SITE_STATS_TTL_SECONDS,
+});
 
 /**
  * Rows past which a scan is no longer an acceptable way to build this page.
@@ -160,7 +161,7 @@ async function computeSiteStats(windowDays = 30): Promise<SiteStats> {
   const handleOf = handleLookup(profiles);
 
   const days = new Map<string, Bucket>();
-  const models = new Map<string, Bucket>();
+  const models = new Map<string, Bucket & { users: Set<string> }>();
   const tools = new Map<string, Bucket & { users: Set<string> }>();
   const perUser = new Map<string, UserAcc>();
   // A "biggest day" is a user-day pair, not a day and not a user.
@@ -192,7 +193,18 @@ async function computeSiteStats(windowDays = 30): Promise<SiteStats> {
     window.requests += row.requests;
 
     add(days, row.day, row.costUsd, tokens, row.requests);
-    add(models, row.model, row.costUsd, tokens, row.requests);
+
+    const model = models.get(row.model) ?? {
+      cost: 0,
+      tokens: 0,
+      requests: 0,
+      users: new Set<string>(),
+    };
+    model.cost += row.costUsd;
+    model.tokens += tokens;
+    model.requests += row.requests;
+    model.users.add(row.userId);
+    models.set(row.model, model);
 
     const tool = tools.get(row.tool) ?? {
       cost: 0,
@@ -261,7 +273,13 @@ async function computeSiteStats(windowDays = 30): Promise<SiteStats> {
     }),
 
     byModel: [...models.entries()]
-      .map(([model, entry]) => ({ model, ...entry }))
+      .map(([model, entry]) => ({
+        model,
+        cost: entry.cost,
+        tokens: entry.tokens,
+        requests: entry.requests,
+        users: entry.users.size,
+      }))
       .sort((a, b) => b.cost - a.cost),
 
     byTool: [...tools.entries()]
@@ -310,7 +328,12 @@ function add(
   cost: number,
   tokens: number,
   requests: number,
-  split?: { input: number; output: number; cacheWrite: number; cacheRead: number },
+  split?: {
+    input: number;
+    output: number;
+    cacheWrite: number;
+    cacheRead: number;
+  },
 ): void {
   const entry = map.get(key) ?? { cost: 0, tokens: 0, requests: 0 };
   entry.cost += cost;

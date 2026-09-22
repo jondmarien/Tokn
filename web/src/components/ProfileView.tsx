@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { AreaChart, ShareBars, StackedDays } from "@/components/Charts";
+import { PagedBars } from "@/components/PagedBars";
 import { Avatar } from "@/components/Avatar";
 import { Heatmap } from "@/components/Heatmap";
 import { ShareButton } from "@/components/ShareButton";
@@ -222,12 +223,17 @@ export async function ProfileView({
               own={own}
             />
           ))}
+          {/* Owner only. "What you could have spent less" is a statement
+              about somebody's money and their judgement, and a leaderboard
+              visitor has no business reading either. */}
+          {own && (
           <Savings
             anatomy={anatomy}
             benchmark={benchmark}
             whatIf={whatIf}
             own={own}
           />
+          )}
           <CostAnatomy
             anatomy={anatomy}
             benchmark={benchmark}
@@ -330,7 +336,7 @@ function Block({
     case "models":
       return (
         <Labelled label="models" value={`${stats.byModel.length} models`}>
-          <ShareBars
+          <PagedBars
             rows={stats.byModel.map((point) => ({
               label: modelLabel(point.model),
               value: point.cost,
@@ -346,7 +352,7 @@ function Block({
           label="tools"
           value={`${stats.byTool.length} ${stats.byTool.length === 1 ? "tool" : "tools"}`}
         >
-          <ShareBars
+          <PagedBars
             rows={stats.byTool.map((point) => ({
               label: point.tool,
               value: point.cost,
@@ -458,7 +464,11 @@ function Plans({ plans, stats, own }: { plans: Plan[]; stats: UserStats; own?: b
           a decision someone actually has to make each month, and it spent its
           first life as the smallest, dimmest line in the section. The
           arithmetic below it stays quiet; the answer does not. */}
-      {flat > 0 && measured > 0 && (
+      {/* Owner only. The plan list is something people choose to publish; what
+          that plan returned against their real usage is a different thing, and
+          a visitor reading "38% of what they pay" is reading a verdict on
+          somebody's spending that was never offered to them. */}
+      {own && flat > 0 && measured > 0 && (
         <>
           <p className="plan-verdict" data-good={ratio >= 1 ? "" : undefined}>
             {ratio >= 1

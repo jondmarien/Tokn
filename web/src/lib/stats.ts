@@ -1,4 +1,5 @@
 import "server-only";
+import { unstable_cache } from "next/cache";
 import {
   listAllProfiles,
   listAllUsage,
@@ -85,23 +86,51 @@ export function periodStart(period: Period, from = today()): string | null {
 /* ------------------------------------------------------------------ cache */
 
 /**
- * Next renders a page across several server components, each calling in here.
- * Without this they would each re-fetch the whole table. Deliberately short:
- * stale figures on a leaderboard are worse than a little extra latency.
+ * The two whole-table reads, cached across requests rather than within one.
+ *
+ * This was a five-second module-level cache, which is worth almost nothing on
+ * a serverless runtime: every cold instance gets its own empty `cache`, so in
+ * practice each request re-scanned `usage_daily`. Appwrite bills a read per
+ * document, and one homepage render calls in here five separate times
+ * (`rankedUsers`, `globalTotals`, `previousRanks`, `totalUsers`, `rankOf`), so
+ * the page cost several full-table scans however short the window was.
+ *
+ * `unstable_cache` is shared across requests and instances, so one scan now
+ * serves every caller and every visitor for the window. A minute of staleness
+ * on a leaderboard is not something anyone can perceive; a scan per visitor is
+ * what exhausted the read quota twice.
  */
-const TTL_MS = 5_000;
+const SNAPSHOT_TTL_SECONDS = 60;
 
-let cache: { at: number; usage: UsageDoc[]; profiles: Profile[] } | null = null;
+const cachedUsage = unstable_cache(async () => listAllUsage(), ["stats:all-usage"], {
+  revalidate: SNAPSHOT_TTL_SECONDS,
+});
+
+const cachedProfiles = unstable_cache(async () => listAllProfiles(), ["stats:all-profiles"], {
+  revalidate: SNAPSHOT_TTL_SECONDS,
+});
 
 async function snapshot(): Promise<{ usage: UsageDoc[]; profiles: Profile[] }> {
-  if (cache && Date.now() - cache.at < TTL_MS) return cache;
-  const [usage, profiles] = await Promise.all([
-    listAllUsage(),
-    listAllProfiles(),
-  ]);
-  cache = { at: Date.now(), usage, profiles };
-  return cache;
+  const [usage, profiles] = await Promise.all([cachedUsage(), cachedProfiles()]);
+  return { usage, profiles };
 }
+
+/**
+ * Profiles alone.
+ *
+ * `totalUsers` and `rankedUsers` count accounts and never look at a usage row,
+ * but they went through `snapshot()` and so dragged the entire `usage_daily`
+ * table along for a number they could get from the profile list. Two counters
+ * on the homepage were each paying for a full scan.
+ */
+async function profilesOnly(): Promise<Profile[]> {
+  return cachedProfiles();
+}
+
+/** The per-user rollup: one row each, so this is cheap enough to share widely. */
+const cachedTotals = unstable_cache(async () => listAllUserTotals(), ["stats:all-totals"], {
+  revalidate: SNAPSHOT_TTL_SECONDS,
+});
 
 const tokensOf = (row: UsageDoc): number =>
   row.input + row.output + row.cacheWrite5m + row.cacheWrite1h + row.cacheRead;
@@ -347,9 +376,23 @@ export async function previousRanks(
   metric: Metric,
 ): Promise<Map<string, number>> {
   const until = shiftDay(today(), -MOVEMENT_LOOKBACK_DAYS);
-  const earlier = await leaderboard(period, metric, 100_000, { until });
-  return new Map(earlier.map((entry) => [entry.userId, entry.rank]));
+  // Cached hard, because this is the one homepage call that cannot avoid the
+  // scan: passing `until` reconstructs an older board, which needs the raw
+  // rows. It asks where everyone stood a whole week ago, so the answer only
+  // changes when the date does, and it was silently costing a full scan on
+  // every single page view.
+  const ranks = await cachedPreviousRanks(period, metric, until);
+  return new Map(ranks);
 }
+
+const cachedPreviousRanks = unstable_cache(
+  async (period: Period, metric: Metric, until: string): Promise<[string, number][]> => {
+    const earlier = await leaderboard(period, metric, 100_000, { until });
+    return earlier.map((entry) => [entry.userId, entry.rank]);
+  },
+  ["stats:previous-ranks"],
+  { revalidate: 21_600 },
+);
 
 /** The per-model spend split for every user, for the mix bar in each row. */
 export async function modelMix(
@@ -432,7 +475,7 @@ export async function rankOf(
 }
 
 export async function totalUsers(): Promise<number> {
-  return (await snapshot()).profiles.length;
+  return (await profilesOnly()).length;
 }
 
 /**
@@ -441,7 +484,7 @@ export async function totalUsers(): Promise<number> {
  * board.
  */
 export async function rankedUsers(): Promise<number> {
-  return (await snapshot()).profiles.filter(listedFor).length;
+  return (await profilesOnly()).filter(listedFor).length;
 }
 
 export interface GlobalTotals {
@@ -452,6 +495,23 @@ export interface GlobalTotals {
 }
 
 export async function globalTotals(period: Period): Promise<GlobalTotals> {
+  // All-time is the default view, and `user_totals` already holds exactly
+  // these four numbers per user. Summing twenty rollup rows beats scanning
+  // every usage row to add up the same figures.
+  if (period === "all") {
+    const totals = await cachedTotals();
+    const out: GlobalTotals = { cost: 0, tokens: 0, requests: 0, users: 0 };
+    for (const row of totals) {
+      out.cost += row.costUsd;
+      out.tokens += row.tokens;
+      out.requests += row.requests;
+      // The scan counted users who appear in usage, so an account that has
+      // never synced is not one of them.
+      if (row.requests > 0) out.users += 1;
+    }
+    return out;
+  }
+
   const { usage } = await snapshot();
   const start = periodStart(period);
 
