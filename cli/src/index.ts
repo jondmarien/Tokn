@@ -11,6 +11,7 @@ import { statusCommand } from "./commands/status.js";
 import { syncCommand } from "./commands/sync.js";
 import { projectsCommand } from "./commands/projects.js";
 import { unlinkCommand } from "./commands/unlink.js";
+import { offerUpdate, updateCommand } from "./commands/update.js";
 import { watchCommand } from "./commands/watch.js";
 import { ApiError } from "./core/api.js";
 import { bold, dim, red, sym } from "./ui/ansi.js";
@@ -71,6 +72,10 @@ const COMMANDS: Record<string, Command> = {
     run: sourcesCommand,
     summary: "Show which AI tools are detected and tracked",
     aliases: ["tools"],
+  },
+  update: {
+    run: updateCommand,
+    summary: "Update tokn to the latest published version",
   },
   unlink: {
     run: unlinkCommand,
@@ -204,7 +209,15 @@ async function main(): Promise<number> {
     return 2;
   }
 
-  return command.run(args);
+  const code = await command.run(args);
+
+  // After the work, never before. A version check that delays what somebody
+  // typed is worse than one that never runs, and `update` obviously does not
+  // need to offer itself. A failed command is left alone too: somebody staring
+  // at an error does not want a sales pitch.
+  if (code === 0 && args.command !== "update") await offerUpdate(args);
+
+  return code;
 }
 
 /** Levenshtein-lite: good enough to catch a single typo. */

@@ -39,6 +39,12 @@ export interface Config {
   pricing?: { fetchedAt: string; models: Record<string, ModelPrice> };
   /** Background publishing driven by a Claude Code session hook. */
   autosync?: { enabled?: boolean; intervalMinutes?: number };
+  /**
+   * What the registry last said, so the check runs daily rather than hourly.
+   * `declined` records a version the user turned down, which is not offered
+   * again — being asked twice about the same release is nagging.
+   */
+  update?: { checkedAt?: string; latest?: string; declined?: string };
 }
 
 export function configDir(): string {

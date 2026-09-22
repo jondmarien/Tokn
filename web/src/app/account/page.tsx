@@ -12,6 +12,8 @@ import {
   listDevices,
   revokeDevice,
 } from "@/lib/auth";
+import { CliUpdateNotice } from "@/components/CliUpdateNotice";
+import { latestCliVersion, outdatedDevices } from "@/lib/cli-version";
 import { SETUP_SEEN_COOKIE } from "@/lib/onboarding";
 import { rankOf, syncInfo } from "@/lib/stats";
 
@@ -53,8 +55,15 @@ export default async function AccountPage() {
 
   const sync = await syncInfo(user.id);
 
+  // npm, not Appwrite, and cached for six hours: this costs nothing against
+  // the database budget and cannot fail the page if the registry is down.
+  const latest = await latestCliVersion();
+  const stale = outdatedDevices(devices, latest);
+
   return (
     <>
+      {latest && stale.length > 0 && <CliUpdateNotice devices={stale} latest={latest} />}
+
       <ProfileView
         user={{
           id: user.id,
