@@ -37,7 +37,13 @@ async function listTranscripts(dir: string, depth = 0): Promise<string[]> {
   for (const entry of entries) {
     if (entry.isSymbolicLink()) continue;
     const full = path.join(dir, entry.name);
-    if (entry.isDirectory()) out.push(...(await listTranscripts(full, depth + 1)));
+    if (entry.isDirectory()) {
+      // Not `push(...children)`. Spreading passes every element as a separate
+      // argument and V8 throws RangeError somewhere past ~100k of them, which
+      // on a deep transcript tree turns a slow scan into a crash. The same
+      // trap is documented at the merge in run-scan.ts.
+      for (const child of await listTranscripts(full, depth + 1)) out.push(child);
+    }
     else if (entry.isFile() && entry.name.endsWith(".jsonl")) out.push(full);
   }
   return out;

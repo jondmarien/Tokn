@@ -111,22 +111,33 @@ export class ApiClient {
         undefined,
         `${(error as Error).message}. Check your connection, or set TOKN_HOST if the dashboard lives elsewhere.`,
       );
-    } finally {
-      clearTimeout(timer);
     }
 
-    if (!response.ok) throw await this.toError(response);
-
-    const text = await response.text();
-    if (text.length === 0) return {} as T;
+    // The timer deliberately stays armed past the headers. `fetch` resolves as
+    // soon as they arrive, so clearing it here would leave a server that sends
+    // headers and then stalls the body able to hang the CLI indefinitely —
+    // no timeout, no error, no output. Both reads below are inside its reach.
     try {
-      return JSON.parse(text) as T;
-    } catch {
-      throw new ApiError(
-        `${this.host} returned a malformed response`,
-        response.status,
-        "Is TOKN_HOST pointing at the dashboard?",
-      );
+      if (!response.ok) throw await this.toError(response);
+
+      const text = await response.text();
+      if (text.length === 0) return {} as T;
+      try {
+        return JSON.parse(text) as T;
+      } catch {
+        throw new ApiError(
+          `${this.host} returned a malformed response`,
+          response.status,
+          "Is TOKN_HOST pointing at the dashboard?",
+        );
+      }
+    } catch (error) {
+      if (controller.signal.aborted) {
+        throw new ApiError(`request to ${this.host} timed out`);
+      }
+      throw error;
+    } finally {
+      clearTimeout(timer);
     }
   }
 

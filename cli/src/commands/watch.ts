@@ -78,6 +78,7 @@ export async function watchCommand(args: ParsedArgs): Promise<number> {
 
   const tails = new Map<string, Tail>();
   const seen = new Set<string>();
+  const startedAt = Date.now();
 
   const discover = async (first: boolean) => {
     const { files } = await discoverSessions();
@@ -88,10 +89,13 @@ export async function watchCommand(args: ParsedArgs): Promise<number> {
         continue;
       }
       tails.set(file.path, {
-        // On the first pass, skip what is already there: this meter is about
-        // the current sitting. A file that appears later is new, so it is read
-        // from the beginning.
-        offset: first ? file.size : 0,
+        // Skip what is already on disk. A file only counts from byte zero when
+        // it was actually written after the watch began: "appeared on a later
+        // tick" is not the same as "is new". A transcript that existed all
+        // along and was simply missed by the first walk would otherwise have
+        // its entire history counted as this sitting, and the meter would jump
+        // by hundreds of dollars for work done last week.
+        offset: first || file.mtimeMs <= startedAt ? file.size : 0,
         mtimeMs: file.mtimeMs,
         source: file.source,
       });
@@ -100,7 +104,6 @@ export async function watchCommand(args: ParsedArgs): Promise<number> {
   await discover(true);
 
   const events: UsageEvent[] = [];
-  const startedAt = Date.now();
   let lastEventAt: number | null = null;
   let stopping = false;
 
