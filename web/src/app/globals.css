@@ -2614,3 +2614,22 @@ table.t tbody tr[data-me="true"] .idle {
   padding: 0.1rem 0.45rem;
   flex-shrink: 0;
 }
+
+/* Placeholder blocks shown while a page's data is in flight. The shimmer is
+   slow on purpose: a fast pulse reads as an error state, and this is the
+   normal case rather than a warning. */
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 0.45; }
+  50%      { opacity: 0.8; }
+}
+
+.skeleton {
+  display: block;
+  border-radius: 4px;
+  background: var(--sub-alt);
+  animation: skeleton-pulse 1.8s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton { animation: none; opacity: 0.6; }
+}

@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { cookies } from "next/headers";
 import {
   authenticate as backendAuthenticate,
@@ -244,11 +245,24 @@ export async function deleteSession(sessionId: string): Promise<void> {
 }
 
 /** The signed-in user for this request, or null. */
-export async function currentUser(): Promise<UserRow | null> {
+/**
+ * Who is asking, resolved once per request.
+ *
+ * The root layout needs this to draw the account menu, and most pages need it
+ * again for their own logic, so a single navigation asked two or three times
+ * and each ask was a session lookup against the database. `cache` collapses
+ * them into one for the life of a render: same answer, one read, and the
+ * latency paid once instead of per caller.
+ *
+ * Per-request only, which is the point. A session that is revoked mid-request
+ * would be a strange thing to notice halfway through rendering one page, and
+ * the next request resolves it again from scratch.
+ */
+export const currentUser = cache(async (): Promise<UserRow | null> => {
   const store = await cookies();
   const profile = await resolveSession(store.get(SESSION_COOKIE)?.value);
   return profile ? toUserRow(profile) : null;
-}
+});
 
 export async function setSessionCookie(sessionId: string, expiresAt: Date): Promise<void> {
   const store = await cookies();
