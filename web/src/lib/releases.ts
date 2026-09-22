@@ -22,6 +22,44 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: "0.5.0",
+    date: "2026-09-21",
+    summary: "A setup flow, and a CLI that does more than count.",
+    notes: [
+      {
+        heading: "Features",
+        items: [
+          "setup: a walkthrough after signing up — pick a handle, install the cli, connect a machine, add a passkey",
+          "cli: tokn watch, a live cost meter for the session you are in",
+          "cli: tokn projects, spend per repository, read locally and never uploaded",
+          "cli: on npm, so npm install -g toknhq works",
+          "account: download everything you have as csv or json",
+          "profiles: what you could have spent less, and which single change is worth the most",
+          "profiles: a subscription against the api-rate value of the work it carried",
+          "stats: tokens per day, not only a running total",
+          "sign in: passkeys first, above github",
+        ],
+      },
+      {
+        heading: "Improvements",
+        items: [
+          "the leaderboard reads a per-user rollup instead of scanning every usage row on every page view",
+          "site-wide stats are cached for an hour, because each miss is a full scan",
+          "prices load in one page and are shared across a request",
+          "reads use a page size meant for reading rather than the write batch",
+          "scanning shows a progress bar instead of a counter",
+        ],
+      },
+      {
+        heading: "Fixes",
+        items: [
+          "the connect step showed an expired code forever and never asked for a new one",
+          "your own account page talked about you in the third person",
+        ],
+      },
+    ],
+  },
+  {
     version: "0.4.0",
     date: "2026-09-19",
     summary: "Themes, and two ways to keep yourself off the board.",
