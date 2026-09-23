@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { clearSessionCookie, currentUser } from "@/lib/auth";
 import { deleteAccount } from "@/lib/backend";
+import { accountRemoved } from "@/lib/board-cache";
 
 /**
  * POST /api/account/delete — erase the signed-in account.
@@ -33,6 +34,7 @@ export async function POST(request: Request) {
   }
 
   const { removed } = await deleteAccount(user.id);
+  accountRemoved();
 
   // The session rows are gone; drop the cookie so the browser agrees.
   await clearSessionCookie();

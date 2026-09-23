@@ -1,9 +1,9 @@
-import { ApiClient, ApiError } from "../core/api.js";
+import { ApiClient, ApiError, type SyncResponse } from "../core/api.js";
 import { loadConfig, resolveToken, saveConfig } from "../core/config.js";
 import { toSyncRows } from "../core/aggregate.js";
 import { NoSessionsError, runScan } from "../core/run-scan.js";
 import { bold, dim, green, sym, yellow } from "../ui/ansi.js";
-import { fullNumber, pluralize, shortModel, usd } from "../ui/format.js";
+import { clockTime, fullNumber, pluralize, shortModel, usd } from "../ui/format.js";
 import { link as hyperlink } from "../ui/prompt.js";
 import { Spinner } from "../ui/spinner.js";
 import { VERSION } from "../version.js";
@@ -111,9 +111,7 @@ export async function syncCommand(args: ParsedArgs): Promise<number> {
       out.write("\n");
     }
 
-    if (response.rank !== undefined) {
-      out.write(`  ${dim(`You are ranked`)} ${bold(`#${fullNumber(response.rank)}`)} ${dim("on the leaderboard.")}\n`);
-    }
+    writeStanding(out, response);
     if (response.profileUrl) {
       out.write(`  ${dim("View:")} ${hyperlink(response.profileUrl)}\n`);
     }
@@ -128,6 +126,26 @@ export async function syncCommand(args: ParsedArgs): Promise<number> {
       return 1;
     }
     throw error;
+  }
+}
+
+/**
+ * Where a sync leaves you.
+ *
+ * The upload is on your profile the moment the server answers. The leaderboard
+ * refreshes on the hour, so the rank printed is the one it shows right now,
+ * and the second line says when this sync reaches it.
+ */
+export function writeStanding(out: typeof process.stdout, response: SyncResponse): void {
+  if (response.rank !== undefined) {
+    out.write(
+      `  ${dim("You are ranked")} ${bold(`#${fullNumber(response.rank)}`)} ${dim("on the leaderboard.")}\n`,
+    );
+  }
+  if (response.board) {
+    out.write(
+      `  ${dim(`Your profile has this sync now. The leaderboard picks it up at ${clockTime(response.board.nextUpdateAt)}.`)}\n`,
+    );
   }
 }
 

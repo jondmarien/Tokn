@@ -64,6 +64,8 @@ export interface BoardData {
   /** Your row when you are off the end of the board, so you always appear. */
   self: BoardRow | null;
   me: { id: string; handle: string };
+  /** When the board's numbers were read. Absent from servers before hourly boards. */
+  updatedAt?: string;
 }
 
 /* ---------------------------------------------------------------- profile */

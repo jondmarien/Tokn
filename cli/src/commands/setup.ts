@@ -13,6 +13,7 @@ import { ask, isValidCode, link as hyperlink, normalizeCode, PromptCancelledErro
 import { select, confirmChoice } from "../ui/select.js";
 import { Spinner } from "../ui/spinner.js";
 import { autosyncCommand } from "./autosync.js";
+import { writeStanding } from "./sync.js";
 import type { ParsedArgs } from "../args.js";
 
 /**
@@ -237,9 +238,7 @@ export async function setupCommand(args: ParsedArgs): Promise<number> {
           });
 
           out.write(`\n  ${green(sym.tick)} Published ${bold(usd(aggregation.totals.cost.total))}\n`);
-          if (response.rank !== undefined) {
-            out.write(`  ${dim("You are ranked")} ${bold(`#${response.rank}`)} ${dim("on the leaderboard.")}\n`);
-          }
+          writeStanding(out, response);
           if (response.profileUrl) {
             out.write(`  ${hyperlink(response.profileUrl)}\n`);
           }

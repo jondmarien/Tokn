@@ -54,6 +54,12 @@ export interface SyncResponse {
    * count means something is wrong with their logs.
    */
   rejected?: { day: string; model: string; reason: string; detail: string }[];
+  /**
+   * The leaderboard's schedule. A sync is on your profile as soon as it is
+   * stored, but the board refreshes on the hour, so the upload shows there at
+   * `nextUpdateAt`. Absent from servers that predate the hourly board.
+   */
+  board?: { updatedAt: string; nextUpdateAt: string };
 }
 
 /** An error we can show the user as-is, without a stack trace. */

@@ -1,6 +1,7 @@
 import "server-only";
 import { cache } from "react";
 import { cookies } from "next/headers";
+import { profilesChanged } from "./board-cache";
 import {
   authenticate as backendAuthenticate,
   authenticateDevice as backendAuthenticateDevice,
@@ -65,6 +66,7 @@ export async function changeHandle(
   handle: string,
 ): Promise<{ ok: true; handle: string; changesLeft: number } | { ok: false; error: string }> {
   const result = await backendChangeHandle(userId, handle);
+  if (result.ok) profilesChanged();
 
   return result.ok
     ? { ok: true, handle: result.profile.handle, changesLeft: result.changesLeft }
@@ -196,7 +198,9 @@ export async function createUser(
   password: string,
   name?: string,
 ): Promise<UserRow> {
-  return toUserRow(await createProfile({ handle, password, name }));
+  const profile = await createProfile({ handle, password, name });
+  profilesChanged();
+  return toUserRow(profile);
 }
 
 /** Verify a handle/password pair. Returns the user, or undefined. */
@@ -232,6 +236,9 @@ export async function saveProfile(
     // Private always wins: a hidden profile is never ranked.
     listed: patch.isPublic !== false && patch.listed !== false,
   });
+  // Going private or unlisted has to take someone off the board now, not at
+  // the next hourly refresh.
+  profilesChanged();
 }
 
 /* --------------------------------------------------------------- sessions */

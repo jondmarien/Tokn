@@ -124,6 +124,14 @@ export interface SyncResult {
 export async function cliSync(
   authorization: string | null,
   body: SyncRequest,
+  options: {
+    /**
+     * Where to look up the rank the CLI prints. Defaults to the live rollup.
+     * The website passes its own board, which refreshes hourly, so the rank a
+     * sync reports is the one people can actually see.
+     */
+    rankOf?: (userId: string) => Promise<number | null>;
+  } = {},
 ): Promise<SyncResult | ServiceError> {
   const auth = await authenticateDevice(authorization);
   if (!auth) return unlinked();
@@ -181,7 +189,7 @@ export async function cliSync(
   // The rollup is what the leaderboard reads, so it has to be refreshed before
   // we can report a rank.
   await refreshTotals(auth.profile.$id);
-  const rank = await rankOf(auth.profile.$id);
+  const rank = await (options.rankOf ?? ((userId: string) => rankOf(userId)))(auth.profile.$id);
 
   return {
     accepted: rows.length,

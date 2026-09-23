@@ -2,15 +2,17 @@ import Link from "next/link";
 import { Segmented } from "@/components/Segmented";
 import { Ticker, type TickerFormat } from "@/components/Ticker";
 import { currentUser } from "@/lib/auth";
-import { compact, count, money, sinceDay } from "@/lib/format";
+import { compact, count, money, relative, sinceDay } from "@/lib/format";
 import { modelLabel } from "@/lib/pricing";
 import {
   METRICS,
   PERIODS,
+  boardUpdatedAt,
   globalTotals,
   isMetric,
   isPeriod,
   leaderboard,
+  nextBoardUpdate,
   previousRanks,
   rankOf,
   rankedUsers,
@@ -80,6 +82,15 @@ export default async function LeaderboardPage({
   // ordinary, and the note is about nobody having reported at all.
   const silent = totals[metric] === 0;
 
+  // The board's numbers refresh on the hour; profiles update on every sync.
+  // Without saying so, someone who has just synced sees their profile move and
+  // the board stand still, and reasonably concludes the board is broken.
+  const updatedAt = await boardUpdatedAt();
+  const minutesToNext = Math.max(
+    1,
+    Math.ceil((Date.parse(nextBoardUpdate()) - Date.now()) / 60_000),
+  );
+
   return (
     <>
       <section className="stats">
@@ -136,6 +147,11 @@ export default async function LeaderboardPage({
             />
           </div>
         </div>
+
+        <p className="micro">
+          numbers updated {relative(updatedAt)}, next refresh in{" "}
+          {minutesToNext} min. a sync shows on your own profile right away.
+        </p>
 
         {silent && (
           <p className="micro">

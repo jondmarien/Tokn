@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { cliSync } from "@/lib/backend";
+import { boardUpdatedAt, leaderboard, nextBoardUpdate } from "@/lib/stats";
 
 /**
  * POST /api/cli/sync — store one scan.
@@ -11,6 +12,11 @@ import { cliSync } from "@/lib/backend";
  *
  * All of the logic lives in the backend service so this route and the
  * standalone server cannot drift apart.
+ *
+ * The upload is on the person's own profile as soon as this returns. The
+ * leaderboard takes it in at the top of the next hour, so the reply says when,
+ * and the rank it reports is the board's rather than a live figure the board
+ * does not show yet.
  */
 
 export const dynamic = "force-dynamic";
@@ -23,11 +29,27 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "expected a JSON body" }, { status: 400 });
   }
 
-  const result = await cliSync(request.headers.get("authorization"), body as never);
+  const result = await cliSync(request.headers.get("authorization"), body as never, {
+    rankOf: boardRank,
+  });
 
   if ("error" in result) {
     return NextResponse.json({ error: result.error }, { status: result.status });
   }
 
-  return NextResponse.json(result);
+  return NextResponse.json({
+    ...result,
+    board: { updatedAt: await boardUpdatedAt(), nextUpdateAt: nextBoardUpdate() },
+  });
+}
+
+/**
+ * Where someone stands on the board as it is shown. Null until the board has
+ * any spend of theirs: every account is listed from sign-up, and being last
+ * among the people who have reported nothing is not a rank worth printing.
+ */
+async function boardRank(userId: string): Promise<number | null> {
+  const board = await leaderboard("all", "cost", 100_000);
+  const entry = board.find((row) => row.userId === userId);
+  return entry && entry.cost > 0 ? entry.rank : null;
 }

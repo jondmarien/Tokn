@@ -101,6 +101,13 @@ export function relativeTime(iso: string): string {
   return `${Math.floor(months / 12)}y ago`;
 }
 
+/** A time of day in the user's own locale and timezone, e.g. "4:00 PM". */
+export function clockTime(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "the top of the hour";
+  return date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+}
+
 export function pluralize(n: number, one: string, many = one + "s"): string {
   return n === 1 ? one : many;
 }

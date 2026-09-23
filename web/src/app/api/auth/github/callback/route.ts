@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { exchangeCode, GithubError, signInWithGithub, verifyState } from "@/lib/backend";
 import { createSession, setSessionCookie } from "@/lib/auth";
+import { profilesChanged } from "@/lib/board-cache";
 
 /**
  * GET /api/auth/github/callback — GitHub sends the user back here.
@@ -44,6 +45,8 @@ export async function GET(request: Request) {
   }
 
   if (!result.ok) return fail(request, result.error);
+  // A new account joins the board straight away, at the bottom.
+  if (result.created) profilesChanged();
 
   // Linking happens in an existing session; only a fresh sign-in needs a cookie.
   if (!state.link) {

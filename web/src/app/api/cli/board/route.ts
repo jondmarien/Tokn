@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { authenticateDevice } from "@/lib/auth";
 import {
   MOVEMENT_LOOKBACK_DAYS,
+  boardUpdatedAt,
   globalTotals,
   isMetric,
   isPeriod,
@@ -42,7 +43,7 @@ export async function GET(request: Request) {
   const period: Period = isPeriod(periodRaw) ? periodRaw : "all";
   const metric: Metric = isMetric(metricRaw) ? metricRaw : "cost";
 
-  const [rows, totals, previous, users, series] = await Promise.all([
+  const [rows, totals, previous, users, series, updatedAt] = await Promise.all([
     leaderboard(period, metric, ROWS),
     globalTotals(period),
     previousRanks(period, metric),
@@ -51,6 +52,7 @@ export async function GET(request: Request) {
     // table has room for a `last` column instead; a terminal row has the width
     // for a shape, and the shape is more use than a date.
     recentSeries(14),
+    boardUpdatedAt(),
   ]);
 
   const me = auth.user.id;
@@ -83,5 +85,6 @@ export async function GET(request: Request) {
     rows: rows.map(decorate),
     self: mine ? { ...decorate(mine), rank: myRank ?? mine.rank } : null,
     me: { id: me, handle: auth.user.handle },
+    updatedAt,
   });
 }

@@ -1,5 +1,5 @@
 import { bold, cyan, dim, gray, inverse, padEnd, padStart, visibleWidth } from "../../ui/ansi.js";
-import { compactNumber, fullNumber, money2, shortModel } from "../../ui/format.js";
+import { compactNumber, fullNumber, money2, relativeTime, shortModel } from "../../ui/format.js";
 import {
   delta,
   highlightRow,
@@ -79,7 +79,12 @@ export function render(data: BoardData, width: number, cursor: number, height: n
   }
 
   const hint = scrollHint(offset, slice.length, data.rows.length);
-  if (hint) lines.push("  " + padStart(hint, inner));
+  // The board refreshes hourly, so a sync that just finished is on your
+  // profile but not here yet. Saying when the numbers were read explains that.
+  const note = data.updatedAt
+    ? dim(`updated ${relativeTime(data.updatedAt)} · refreshes hourly`)
+    : "";
+  if (note || hint) lines.push("  " + note + padStart(hint, inner - visibleWidth(note)));
 
   return lines;
 }

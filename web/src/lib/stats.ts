@@ -1,5 +1,7 @@
 import "server-only";
+import { cache } from "react";
 import { unstable_cache } from "next/cache";
+import { PROFILES_TAG, USAGE_TAG } from "./board-cache";
 import {
   listAllProfiles,
   listAllUsage,
@@ -7,7 +9,6 @@ import {
   listDevices,
   listUsage,
   listedFor,
-  type Profile,
   type Totals,
   type UsageDoc,
 } from "./backend";
@@ -19,12 +20,10 @@ import {
  * SQL now happens here in memory over the raw rows. Two consequences worth
  * knowing:
  *
- *   - Board-wide functions load every usage row. That is fine at current scale
- *     and deliberately not a long-term plan; past a few thousand active users
- *     the leaderboard should read the `user_totals` rollup the backend already
- *     maintains on every sync.
- *   - A short in-process cache keeps one page render from fetching the same
- *     rows several times over.
+ *   - Board-wide functions work from a snapshot of every usage row, folded
+ *     to (user, day, model) and refreshed hourly. See the cache section.
+ *   - A profile page reads only that person's rows, directly and uncached, so
+ *     a sync shows there at once.
  *
  * Days are plain `YYYY-MM-DD` strings in the reporter's own timezone, which is
  * what the CLI uploads. Comparing them as strings is therefore correct.
@@ -86,57 +85,243 @@ export function periodStart(period: Period, from = today()): string | null {
 /* ------------------------------------------------------------------ cache */
 
 /**
- * The two whole-table reads, cached across requests rather than within one.
+ * The board runs on a snapshot that refreshes on the hour.
  *
- * This was a five-second module-level cache, which is worth almost nothing on
- * a serverless runtime: every cold instance gets its own empty `cache`, so in
- * practice each request re-scanned `usage_daily`. Appwrite bills a read per
- * document, and one homepage render calls in here five separate times
- * (`rankedUsers`, `globalTotals`, `previousRanks`, `totalUsers`, `rankOf`), so
- * the page cost several full-table scans however short the window was.
+ * A sync shows on the syncing person's own pages the moment it lands, because
+ * those read their rows directly (`userStats`, `getTotals`). The board is
+ * slower on purpose. It is rebuilt once an hour, so everyone sees ranks move
+ * at the same time instead of watching them reshuffle every few seconds, and a
+ * page view costs no database reads.
  *
- * `unstable_cache` is shared across requests and instances, so one scan now
- * serves every caller and every visitor for the window. A minute of staleness
- * on a leaderboard is not something anyone can perceive; a scan per visitor is
- * what exhausted the read quota twice.
+ * Numbers and identity are cached separately:
+ *
+ *   - Spend, tokens and requests follow the hourly snapshot.
+ *   - Profiles (handles, names, who is private or unlisted) are cleared the
+ *     moment one changes (`board-cache.ts`). Someone who hides their account
+ *     has to leave the board now, not at the next hour.
+ *
+ * Nothing here may be nested inside another `unstable_cache`: Next skips the
+ * cache for nested calls, so a cached wrapper around these would quietly run
+ * every read underneath it on each refresh.
  */
-const SNAPSHOT_TTL_SECONDS = 60;
-
-const cachedUsage = unstable_cache(async () => listAllUsage(), ["stats:all-usage"], {
-  revalidate: SNAPSHOT_TTL_SECONDS,
-});
-
-const cachedProfiles = unstable_cache(async () => listAllProfiles(), ["stats:all-profiles"], {
-  revalidate: SNAPSHOT_TTL_SECONDS,
-});
-
-async function snapshot(): Promise<{ usage: UsageDoc[]; profiles: Profile[] }> {
-  const [usage, profiles] = await Promise.all([cachedUsage(), cachedProfiles()]);
-  return { usage, profiles };
-}
+export const BOARD_REFRESH_SECONDS = 3_600;
 
 /**
- * Profiles alone.
- *
- * `totalUsers` and `rankedUsers` count accounts and never look at a usage row,
- * but they went through `snapshot()` and so dragged the entire `usage_daily`
- * table along for a number they could get from the profile list. Two counters
- * on the homepage were each paying for a full scan.
+ * How far back of the day's scan to look for syncs. Covers clock drift between
+ * the instance that took the scan and the one that stamped `lastSyncAt`.
  */
-async function profilesOnly(): Promise<Profile[]> {
-  return cachedProfiles();
+const SYNC_SKEW_MS = 10 * 60_000;
+
+/**
+ * Where a warning is logged. The data cache refuses entries over 2MB and says
+ * so only in the logs, after which every view would read the table again.
+ * The raw rows passed that limit at a few thousand rows, which is how the
+ * previous version of this cache ended up never storing anything.
+ */
+const CACHE_WARN_BYTES = 1_500_000;
+
+/**
+ * One user's usage for one (day, model), with tool and fast mode folded in.
+ *
+ * Tuples rather than objects, and model names stored once: the board needs
+ * nothing finer than this, and the raw documents are about fifteen times the
+ * size.
+ */
+type Cell = [day: string, model: number, cost: number, tokens: number, requests: number];
+
+interface UsageSlice {
+  /** When the reads began. A sync that lands after this is not in it. */
+  capturedAt: string;
+  models: string[];
+  users: Record<string, Cell[]>;
 }
 
-/** The per-user rollup: one row each, so this is cheap enough to share widely. */
-const cachedTotals = unstable_cache(async () => listAllUserTotals(), ["stats:all-totals"], {
-  revalidate: SNAPSHOT_TTL_SECONDS,
-});
+type TotalsRow = Pick<
+  Totals,
+  "userId" | "costUsd" | "tokens" | "requests" | "activeDays" | "topModel" | "lastDay"
+>;
+
+interface Delta {
+  capturedAt: string;
+  totals: TotalsRow[];
+  /** Everyone re-read for this delta, including anyone now with no rows. */
+  changed: string[];
+  usage: UsageSlice;
+}
 
 const tokensOf = (row: UsageDoc): number =>
   row.input + row.output + row.cacheWrite5m + row.cacheWrite1h + row.cacheRead;
 
+function compactUsage(rows: UsageDoc[], capturedAt: string): UsageSlice {
+  const models: string[] = [];
+  const modelIndex = new Map<string, number>();
+  const cells = new Map<string, Cell>();
+  const users: Record<string, Cell[]> = {};
+
+  for (const row of rows) {
+    let model = modelIndex.get(row.model);
+    if (model === undefined) {
+      model = models.length;
+      models.push(row.model);
+      modelIndex.set(row.model, model);
+    }
+
+    const key = `${row.userId}|${row.day}|${model}`;
+    const hit = cells.get(key);
+    if (hit) {
+      hit[2] += row.costUsd;
+      hit[3] += tokensOf(row);
+      hit[4] += row.requests;
+      continue;
+    }
+
+    const cell: Cell = [row.day, model, row.costUsd, tokensOf(row), row.requests];
+    cells.set(key, cell);
+    (users[row.userId] ??= []).push(cell);
+  }
+
+  return { capturedAt, models, users };
+}
+
+function warnIfLarge(label: string, value: unknown): void {
+  const bytes = JSON.stringify(value).length;
+  if (bytes > CACHE_WARN_BYTES) {
+    console.warn(
+      `[board] ${label} is ${bytes} bytes. The data cache stores nothing over 2MB, ` +
+        `so past that every board view reads usage_daily in full.`,
+    );
+  }
+}
+
+/**
+ * Every usage row, folded down: the one expensive read, a document per row.
+ *
+ * It runs once a day and is served stale while it refreshes, so no visitor
+ * waits on it after the first. Syncs since it was taken are layered on top by
+ * the hourly delta, which is what keeps it correct between refreshes.
+ */
+const cachedUsageBase = unstable_cache(
+  async (): Promise<UsageSlice> => {
+    const capturedAt = new Date().toISOString();
+    const slice = compactUsage(await listAllUsage(), capturedAt);
+    warnIfLarge("usage snapshot", slice);
+    return slice;
+  },
+  ["board:usage-base"],
+  { revalidate: 86_400, tags: [USAGE_TAG] },
+);
+
+/**
+ * The hour's changes: the rollup (one row per user), plus the full rows of
+ * everyone whose rollup says they synced since the base was taken.
+ *
+ * Keyed by the hour, so it is rebuilt at most once an hour and never served
+ * from an earlier one, and by the base it sits on, so a fresh base gets a
+ * fresh delta.
+ */
+const cachedUsageDelta = unstable_cache(
+  async (_hour: number, since: string): Promise<Delta> => {
+    const capturedAt = new Date().toISOString();
+    const totals = await listAllUserTotals();
+    const changed = totals
+      .filter((row) => row.lastSyncAt && row.lastSyncAt >= since)
+      .map((row) => row.userId);
+    const rows = (await Promise.all(changed.map((userId) => listUsage(userId)))).flat();
+
+    return {
+      capturedAt,
+      totals: totals.map((row) => ({
+        userId: row.userId,
+        costUsd: row.costUsd,
+        tokens: row.tokens,
+        requests: row.requests,
+        activeDays: row.activeDays,
+        topModel: row.topModel ?? null,
+        lastDay: row.lastDay ?? null,
+      })),
+      changed,
+      usage: compactUsage(rows, capturedAt),
+    };
+  },
+  ["board:usage-delta"],
+  { revalidate: BOARD_REFRESH_SECONDS * 2 },
+);
+
+/** Every profile. Cleared on any change to one, with an hourly backstop. */
+const cachedProfiles = unstable_cache(async () => listAllProfiles(), ["board:profiles"], {
+  revalidate: BOARD_REFRESH_SECONDS,
+  tags: [PROFILES_TAG],
+});
+
+const currentHour = (): number => Math.floor(Date.now() / (BOARD_REFRESH_SECONDS * 1000));
+
+interface BoardRow {
+  userId: string;
+  day: string;
+  model: string;
+  cost: number;
+  tokens: number;
+  requests: number;
+}
+
+interface Snapshot {
+  /** When the numbers on the board were read. */
+  updatedAt: string;
+  rows: BoardRow[];
+  totals: TotalsRow[];
+}
+
+/** The decoded snapshot, kept while its two halves are unchanged. */
+let decoded: { key: string; snapshot: Snapshot } | null = null;
+
+/**
+ * The board's numbers: the daily base with the hour's delta over it.
+ *
+ * Wrapped in React's `cache` so the half-dozen calls one page render makes
+ * share a single fetch from the data cache.
+ */
+const snapshot = cache(async (): Promise<Snapshot> => {
+  const base = await cachedUsageBase();
+  const since = new Date(Date.parse(base.capturedAt) - SYNC_SKEW_MS).toISOString();
+  const delta = await cachedUsageDelta(currentHour(), since);
+
+  const key = `${base.capturedAt}|${delta.capturedAt}`;
+  if (decoded?.key === key) return decoded.snapshot;
+
+  const rows: BoardRow[] = [];
+  const add = (slice: UsageSlice, userId: string, cells: Cell[]) => {
+    for (const [day, model, cost, tokens, requests] of cells) {
+      rows.push({ userId, day, model: slice.models[model] ?? "unknown", cost, tokens, requests });
+    }
+  };
+
+  // A user in the delta is replaced wholesale: syncs upsert, so their fresh
+  // rows are the whole truth and the base's copy is simply older.
+  const replaced = new Set(delta.changed);
+  for (const [userId, cells] of Object.entries(base.users)) {
+    if (!replaced.has(userId)) add(base, userId, cells);
+  }
+  for (const [userId, cells] of Object.entries(delta.usage.users)) {
+    add(delta.usage, userId, cells);
+  }
+
+  const next: Snapshot = { updatedAt: delta.capturedAt, rows, totals: delta.totals };
+  decoded = { key, snapshot: next };
+  return next;
+});
+
+/** When the numbers on the board were last read, for the "updated" note. */
+export async function boardUpdatedAt(): Promise<string> {
+  return (await snapshot()).updatedAt;
+}
+
+/** When the board next takes in new syncs: the top of the next hour. */
+export function nextBoardUpdate(): string {
+  return new Date((currentHour() + 1) * BOARD_REFRESH_SECONDS * 1000).toISOString();
+}
+
 const inWindow = (
-  row: UsageDoc,
+  row: { day: string },
   start: string | null,
   until?: string,
 ): boolean => (!start || row.day >= start) && (!until || row.day <= until);
@@ -201,16 +386,16 @@ export interface BoardOptions {
  *
  * Only all-time is served this way. The rollup carries `costUsd7d` and
  * `costUsd30d` but no windowed token or request counts, and nothing that can
- * reconstruct an earlier board, so every other period still reads the rows.
- * Approximating them would be worse than being slow: a board is a ranking, and
- * a ranking that is quietly wrong is not worth having.
+ * reconstruct an earlier board, so every other period sums the snapshot's
+ * rows. Approximating them would be worse: a board is a ranking, and a ranking
+ * that is quietly wrong is not worth having.
  */
 async function boardFromTotals(
   metric: Metric,
   { activeOnly, offset, limit }: { activeOnly: boolean; offset: number; limit: number },
 ): Promise<LeaderboardEntry[]> {
-  const [totals, profiles] = await Promise.all([listAllUserTotals(), listAllProfiles()]);
-  const byUser = new Map<string, Totals>(totals.map((row) => [row.userId, row]));
+  const [{ totals }, profiles] = await Promise.all([snapshot(), cachedProfiles()]);
+  const byUser = new Map<string, TotalsRow>(totals.map((row) => [row.userId, row]));
 
   const entries: LeaderboardEntry[] = [];
   for (const profile of profiles) {
@@ -249,7 +434,7 @@ export async function leaderboard(
     return boardFromTotals(metric, { activeOnly, offset, limit });
   }
 
-  const { usage, profiles } = await snapshot();
+  const [{ rows }, profiles] = await Promise.all([snapshot(), cachedProfiles()]);
   const start = periodStart(period, until);
 
   interface Acc {
@@ -286,7 +471,7 @@ export async function leaderboard(
     byUser.set(profile.$id, blank());
   }
 
-  for (const row of usage) {
+  for (const row of rows) {
     if (!inWindow(row, start, until)) continue;
 
     let acc = byUser.get(row.userId);
@@ -297,12 +482,12 @@ export async function leaderboard(
       byUser.set(row.userId, acc);
     }
 
-    acc.cost += row.costUsd;
-    acc.tokens += tokensOf(row);
+    acc.cost += row.cost;
+    acc.tokens += row.tokens;
     acc.requests += row.requests;
     acc.days.add(row.day);
     if (!acc.lastDay || row.day > acc.lastDay) acc.lastDay = row.day;
-    acc.models.set(row.model, (acc.models.get(row.model) ?? 0) + row.costUsd);
+    acc.models.set(row.model, (acc.models.get(row.model) ?? 0) + row.cost);
   }
 
   const profileById = new Map(profiles.map((p) => [p.$id, p]));
@@ -376,40 +561,29 @@ export async function previousRanks(
   metric: Metric,
 ): Promise<Map<string, number>> {
   const until = shiftDay(today(), -MOVEMENT_LOOKBACK_DAYS);
-  // Cached hard, because this is the one homepage call that cannot avoid the
-  // scan: passing `until` reconstructs an older board, which needs the raw
-  // rows. It asks where everyone stood a whole week ago, so the answer only
-  // changes when the date does, and it was silently costing a full scan on
-  // every single page view.
-  const ranks = await cachedPreviousRanks(period, metric, until);
-  return new Map(ranks);
+  // Rebuilt from the snapshot in memory, which costs no reads. This used to be
+  // its own `unstable_cache` around `leaderboard`, and Next skips the cache for
+  // calls nested inside one, so every rebuild re-read the whole table.
+  const earlier = await leaderboard(period, metric, 100_000, { until });
+  return new Map(earlier.map((entry) => [entry.userId, entry.rank]));
 }
-
-const cachedPreviousRanks = unstable_cache(
-  async (period: Period, metric: Metric, until: string): Promise<[string, number][]> => {
-    const earlier = await leaderboard(period, metric, 100_000, { until });
-    return earlier.map((entry) => [entry.userId, entry.rank]);
-  },
-  ["stats:previous-ranks"],
-  { revalidate: 21_600 },
-);
 
 /** The per-model spend split for every user, for the mix bar in each row. */
 export async function modelMix(
   period: Period,
 ): Promise<Map<string, { model: string; cost: number }[]>> {
-  const { usage } = await snapshot();
+  const { rows } = await snapshot();
   const start = periodStart(period);
 
   const byUser = new Map<string, Map<string, number>>();
-  for (const row of usage) {
+  for (const row of rows) {
     if (!inWindow(row, start)) continue;
     let models = byUser.get(row.userId);
     if (!models) {
       models = new Map();
       byUser.set(row.userId, models);
     }
-    models.set(row.model, (models.get(row.model) ?? 0) + row.costUsd);
+    models.set(row.model, (models.get(row.model) ?? 0) + row.cost);
   }
 
   const mix = new Map<string, { model: string; cost: number }[]>();
@@ -426,7 +600,7 @@ export async function modelMix(
 
 /** A short daily-cost series per user, for the sparkline in each row. */
 export async function recentSeries(days = 14): Promise<Map<string, number[]>> {
-  const { usage } = await snapshot();
+  const { rows } = await snapshot();
   const start = shiftDay(today(), -(days - 1));
 
   // Days with no usage have no row, and a gap would misdraw the line, so every
@@ -437,7 +611,7 @@ export async function recentSeries(days = 14): Promise<Map<string, number[]>> {
   const index = new Map(window.map((day, position) => [day, position]));
 
   const series = new Map<string, number[]>();
-  for (const row of usage) {
+  for (const row of rows) {
     if (row.day < start) continue;
     const position = index.get(row.day);
     if (position === undefined) continue;
@@ -447,7 +621,7 @@ export async function recentSeries(days = 14): Promise<Map<string, number[]>> {
       values = new Array<number>(days).fill(0);
       series.set(row.userId, values);
     }
-    values[position] = (values[position] ?? 0) + row.costUsd;
+    values[position] = (values[position] ?? 0) + row.cost;
   }
 
   return series;
@@ -475,7 +649,7 @@ export async function rankOf(
 }
 
 export async function totalUsers(): Promise<number> {
-  return (await profilesOnly()).length;
+  return (await cachedProfiles()).length;
 }
 
 /**
@@ -484,7 +658,7 @@ export async function totalUsers(): Promise<number> {
  * board.
  */
 export async function rankedUsers(): Promise<number> {
-  return (await profilesOnly()).filter(listedFor).length;
+  return (await cachedProfiles()).filter(listedFor).length;
 }
 
 export interface GlobalTotals {
@@ -499,7 +673,7 @@ export async function globalTotals(period: Period): Promise<GlobalTotals> {
   // these four numbers per user. Summing twenty rollup rows beats scanning
   // every usage row to add up the same figures.
   if (period === "all") {
-    const totals = await cachedTotals();
+    const { totals } = await snapshot();
     const out: GlobalTotals = { cost: 0, tokens: 0, requests: 0, users: 0 };
     for (const row of totals) {
       out.cost += row.costUsd;
@@ -512,16 +686,16 @@ export async function globalTotals(period: Period): Promise<GlobalTotals> {
     return out;
   }
 
-  const { usage } = await snapshot();
+  const { rows } = await snapshot();
   const start = periodStart(period);
 
   const totals: GlobalTotals = { cost: 0, tokens: 0, requests: 0, users: 0 };
   const users = new Set<string>();
 
-  for (const row of usage) {
+  for (const row of rows) {
     if (!inWindow(row, start)) continue;
-    totals.cost += row.costUsd;
-    totals.tokens += tokensOf(row);
+    totals.cost += row.cost;
+    totals.tokens += row.tokens;
     totals.requests += row.requests;
     users.add(row.userId);
   }
