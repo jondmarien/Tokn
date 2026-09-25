@@ -1,6 +1,5 @@
 import fs from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
+import overridesJson from "./overrides.json" with { type: "json" };
 
 /**
  * One builder for every price table tokn serves.
@@ -89,11 +88,18 @@ export interface PriceDraft {
   fastOutput: number | null;
 }
 
-const overridesPath = path.join(path.dirname(fileURLToPath(import.meta.url)), "overrides.json");
-
-export function loadOverrides(file = overridesPath): Record<string, PriceOverride> {
-  const parsed = JSON.parse(fs.readFileSync(file, "utf8")) as Record<string, PriceOverride>;
-  return parsed;
+/**
+ * The override table.
+ *
+ * Imported rather than read from disk. The cron and the pricing route run as
+ * bundled Next.js server functions, where `import.meta.url` points inside
+ * `.next/server` and a sibling `overrides.json` is not in the bundle. A static
+ * import is inlined by the bundler and still loads under `node --experimental-strip-types`.
+ * Pass `file` only to read a different copy in a test.
+ */
+export function loadOverrides(file?: string): Record<string, PriceOverride> {
+  if (!file) return overridesJson;
+  return JSON.parse(fs.readFileSync(file, "utf8")) as Record<string, PriceOverride>;
 }
 
 /**

@@ -18,7 +18,7 @@ pricing/render.ts        writes cli/src/core/pricing-data.ts
 |---|---|---|
 | CLI offline snapshot | `cd cli && npm run pricing` | `cli/src/core/pricing-data.ts` (commit it with a CLI release) |
 | Local Appwrite | `cd backend && npm run seed:pricing` | `pricing` collection. Needs `APPWRITE_API_KEY`. |
-| Production | `GET /api/cron/refresh-pricing` daily, and `GET /api/cli/pricing` when the stored table is missing a probe model or is older than 24 hours | same collection |
+| Production | `GET /api/cron/refresh-pricing` daily, and `GET /api/cli/pricing` when the stored table is empty or older than 24 hours | same collection |
 
 `seed:pricing` and the cron route call the same `refreshPricingFromCatalog()`
 function. Re-running it overwrites rows; it does not append.
